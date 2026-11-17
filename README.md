@@ -1,36 +1,95 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 올해의 나 시상식
 
-## Getting Started
+친구들이 링크로 들어와 주인공에게 상을 골라 주고, 2026-12-31 21:00(KST)에 결과가 공개되는 모바일 웹이에요.
+작업 기준은 [CLAUDE.md](./CLAUDE.md)를 봐 주세요.
 
-First, run the development server:
+## 시작하기
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+cp .env.example .env.local   # 값 채우기
+npm run dev                  # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+| 명령 | 설명 |
+|---|---|
+| `npm run dev` | 개발 서버 |
+| `npm run build` | 프로덕션 빌드 |
+| `npm run lint` | ESLint |
+| `npm test` | 단위 테스트(vitest) |
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- 연결 확인: `GET /api/health` → `{"ok":true}`
+- UI 견본(개발 전용): `/dev/ui`
+- Firestore 보안 규칙 배포: `firebase deploy --only firestore:rules`
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## API 써 보기
 
-## Learn More
+아래 예시는 개발 서버(`http://localhost:3000`) 기준이에요. 배포 주소로 바꿔서 써도 돼요.
+만들기 요청은 Firestore에 실제 시상식 문서를 만들어요.
 
-To learn more about Next.js, take a look at the following resources:
+### 맥 / 리눅스 (bash, zsh)
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+시상식 만들기:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+curl -i -X POST http://localhost:3000/api/ceremonies \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"지민"}'
+```
 
-## Deploy on Vercel
+성공하면 `201`과 함께 아래처럼 와요. `manageUrl`의 `#` 뒤가 관리 토큰이고, 이 응답에서 한 번만 볼 수 있어요.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```json
+{ "slug": "k7m3p9xq", "manageUrl": "http://localhost:3000/m/k7m3p9xq#..." }
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+조회하기(`<slug>` 자리에 받은 slug):
+
+```bash
+curl -i http://localhost:3000/api/ceremonies/<slug>
+```
+
+```json
+{ "name": "지민", "revealAt": "2026-12-31T12:00:00.000Z", "trophyCount": 0, "closed": false }
+```
+
+slug만 바로 꺼내 쓰려면(jq 필요):
+
+```bash
+SLUG=$(curl -s -X POST http://localhost:3000/api/ceremonies \
+  -H 'Content-Type: application/json' -d '{"name":"지민"}' | jq -r .slug)
+curl -s http://localhost:3000/api/ceremonies/$SLUG
+```
+
+### 윈도우 (PowerShell)
+
+PowerShell 5.1에서 `curl`은 `Invoke-WebRequest`의 별칭이라 위 명령이 그대로 동작하지 않아요. `Invoke-RestMethod`를 쓰세요.
+한글 이름이 깨지지 않게 body를 UTF-8 바이트로 보내요.
+
+시상식 만들기:
+
+```powershell
+$body = @{ name = "지민" } | ConvertTo-Json
+$res = Invoke-RestMethod -Method Post -Uri "http://localhost:3000/api/ceremonies" `
+  -ContentType "application/json; charset=utf-8" `
+  -Body ([System.Text.Encoding]::UTF8.GetBytes($body))
+$res
+```
+
+조회하기:
+
+```powershell
+Invoke-RestMethod -Uri "http://localhost:3000/api/ceremonies/$($res.slug)"
+```
+
+`Invoke-RestMethod`는 4xx·5xx 응답에서 예외를 던져요. 에러 body(`{ error, message }`)를 보려면 PowerShell 7 이상에서 `-SkipHttpErrorCheck`를 붙이세요.
+
+### 응답 코드
+
+| 상황 | 상태 | body |
+|---|---|---|
+| 만들기 성공 | 201 | `{ slug, manageUrl }` |
+| 이름이 비었거나 8자 초과 | 400 | `{ error: "invalid", field: "name", message }` |
+| body가 JSON이 아님 | 400 | `{ error: "bad_request", message }` |
+| 공개 시각(2026-12-31 21:00 KST) 이후 만들기 | 410 | `{ error: "season_over", message }` |
+| 없는 시상식, 숨김 처리, slug 형식 오류 | 404 | `{ error: "not_found", message }` |
