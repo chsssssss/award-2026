@@ -1,5 +1,4 @@
 import { notFound } from "next/navigation";
-import { connection } from "next/server";
 import { Suspense } from "react";
 
 import { TrophyIcon } from "@/components/TrophyIcon";
@@ -22,8 +21,7 @@ export default function VotePage({ params }: PageProps<"/s/[slug]">) {
 
 async function VoteContent({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  await connection(); // 공개 여부·D-day는 요청 시점의 서버 시각으로
-  const ceremony = await loadCeremony(slug);
+  const ceremony = await loadCeremony(slug); // 안에서 connection() → 공개 여부·D-day는 요청 시점 서버 시각
   if (!ceremony) notFound();
 
   // 공개 시각이 지났으면 결과 내용 없이 종료 안내만

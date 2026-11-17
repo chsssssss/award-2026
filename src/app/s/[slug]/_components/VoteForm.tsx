@@ -77,6 +77,9 @@ export function VoteForm({ slug, name, revealDateLabel }: Props) {
   const [errors, setErrors] = useState<Partial<Record<Field, string>>>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  // 이번 방문에서 직접 보냈으면(성공·409) 방금 남긴 기록 때문에 "이미 줬어요" 화면으로 바뀌지 않게 한다.
+  const [sentHere, setSentHere] = useState(false);
+  const showAlreadyGiven = gaveBefore && !sentHere;
 
   useEffect(() => {
     if (pick === "custom") customInput.current?.focus();
@@ -110,6 +113,7 @@ export function VoteForm({ slug, name, revealDateLabel }: Props) {
     const result = await postJson(`/api/ceremonies/${slug}/trophies`, parsed.data);
 
     if (result.ok) {
+      setSentHere(true);
       writeStorage(gaveKey(slug), String(Date.now()));
       const awardName =
         parsed.data.awardId === "custom"
@@ -127,6 +131,7 @@ export function VoteForm({ slug, name, revealDateLabel }: Props) {
         setSubmitting(false);
         return;
       case 409:
+        setSentHere(true);
         writeStorage(gaveKey(slug), String(Date.now()));
         setFormError("이미 이 시상식에 상을 줬어요");
         setTimeout(() => router.push(doneUrl), 1500);
@@ -142,7 +147,7 @@ export function VoteForm({ slug, name, revealDateLabel }: Props) {
     }
   }
 
-  if (gaveBefore) {
+  if (showAlreadyGiven) {
     return (
       <div className="flex flex-1 flex-col">
         <div className="flex flex-1 flex-col items-center justify-center py-10 text-center">
