@@ -7,6 +7,13 @@ import { colors, colorTokens } from "@/lib/colors";
 
 export const metadata = { title: "UI 견본 (dev)" };
 
+const OG_PREVIEWS = [
+  { label: "이름 2자", name: "지민" },
+  { label: "이름 8자", name: "김수한무거북이와" },
+  { label: "영문 8자", name: "Victoria" },
+  { label: "기본 이미지 (루트·없는 시상식)", name: "" },
+] as const;
+
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className="mt-10">
@@ -107,6 +114,28 @@ export default function DevUiPage() {
           <p className="mt-4 text-xs text-subtle">danger</p>
           <p className="mt-1 text-[13px] text-danger">이름은 8자까지 쓸 수 있어요</p>
         </div>
+      </Section>
+
+      <Section title="링크 미리보기 (1200×630)">
+        <p className="text-xs text-subtle">
+          /api/dev/og-preview?name= 로 그려요. 네모 칸(□)이 보이면 폰트가 빠진 거예요.
+        </p>
+        <ul className="mt-3 flex flex-col gap-4">
+          {OG_PREVIEWS.map(({ label, name }) => (
+            <li key={label}>
+              <span className="text-xs text-muted">{label}</span>
+              {/* 개발용 이미지 라우트를 그대로 보여 준다(next/image 최적화 불필요) */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={`/api/dev/og-preview?name=${encodeURIComponent(name)}`}
+                alt={`${label} 미리보기`}
+                width={1200}
+                height={630}
+                className="mt-1.5 h-auto w-full rounded-[14px] border border-line"
+              />
+            </li>
+          ))}
+        </ul>
       </Section>
     </main>
   );
