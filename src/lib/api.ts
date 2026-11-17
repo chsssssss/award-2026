@@ -34,6 +34,20 @@ export const badRequest = () =>
 export const serverError = () =>
   jsonError(500, "server_error", "잠시 후 다시 시도해주세요");
 
+/** 429. Retry-After 헤더(초)를 같이 보낸다. */
+export function rateLimited(retryAfterSec: number): Response {
+  return Response.json(
+    { error: "rate_limited", message: "요청이 많아요. 잠시 후 다시 시도해주세요" },
+    {
+      status: 429,
+      headers: {
+        "Cache-Control": NO_STORE,
+        "Retry-After": String(retryAfterSec),
+      },
+    },
+  );
+}
+
 /** 요청 body를 JSON으로 읽는다. 실패하면 400 bad_request 응답을 돌려준다. */
 export async function readJson(
   request: Request,

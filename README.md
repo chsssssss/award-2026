@@ -21,6 +21,7 @@ npm run dev                  # http://localhost:3000
 - 연결 확인: `GET /api/health` → `{"ok":true}`
 - UI 견본(개발 전용): `/dev/ui`
 - Firestore 보안 규칙 배포: `firebase deploy --only firestore:rules`
+- Firestore TTL 정책 배포(`rateLimits.expireAt` 자동 삭제): `firebase deploy --only firestore:indexes` (Firebase Blaze 요금제 필요)
 
 ## API 써 보기
 
@@ -91,5 +92,6 @@ Invoke-RestMethod -Uri "http://localhost:3000/api/ceremonies/$($res.slug)"
 | 만들기 성공 | 201 | `{ slug, manageUrl }` |
 | 이름이 비었거나 8자 초과 | 400 | `{ error: "invalid", field: "name", message }` |
 | body가 JSON이 아님 | 400 | `{ error: "bad_request", message }` |
+| 같은 IP에서 10분에 20개 넘게 만들기 | 429 | `{ error: "rate_limited", message }` + `Retry-After`(초) |
 | 공개 시각(2026-12-31 21:00 KST) 이후 만들기 | 410 | `{ error: "season_over", message }` |
 | 없는 시상식, 숨김 처리, slug 형식 오류 | 404 | `{ error: "not_found", message }` |

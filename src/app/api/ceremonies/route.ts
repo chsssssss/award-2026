@@ -4,11 +4,14 @@ import {
   errorCode,
   jsonError,
   jsonOk,
+  rateLimited,
   readJson,
   serverError,
 } from "@/lib/api";
 import { ceremonyRef } from "@/lib/ceremonies";
 import { REVEAL_AT } from "@/lib/constants";
+import { getClientIp, hashIp } from "@/lib/ip";
+import { consumeRateLimit } from "@/lib/rate-limit";
 import { createCeremonySchema } from "@/lib/schemas";
 import { isRevealed } from "@/lib/time";
 import { generateOwnerToken, generateSlug, hashToken } from "@/lib/token";
@@ -44,6 +47,18 @@ export async function POST(request: Request) {
   if (!parsed.success) {
     const message = parsed.error.issues[0]?.message ?? "이름을 확인해주세요";
     return jsonError(400, "invalid", message, { field: "name" });
+  }
+
+  // 검증을 통과한 요청만 센다(형식이 틀린 요청은 Firestore에 닿지 않는다).
+  try {
+    const limit = await consumeRateLimit(
+      "createCeremony",
+      hashIp(getClientIp(request)),
+    );
+    if (!limit.ok) return rateLimited(limit.retryAfterSec);
+  } catch (error) {
+    console.error(`[ceremonies] 요청 제한 확인 실패 (code: ${errorCode(error)})`);
+    return serverError();
   }
 
   const token = generateOwnerToken();

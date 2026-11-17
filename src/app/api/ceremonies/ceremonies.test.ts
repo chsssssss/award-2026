@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { REVEAL_AT } from "@/lib/constants";
 import { db } from "@/lib/firebase-admin";
+import { RATE_LIMIT_RULES } from "@/lib/rate-limit";
 import { SLUG_ALPHABET } from "@/lib/slug";
 import { hashToken } from "@/lib/token";
 import type { FakeFirestore } from "@/test/fake-firestore";
@@ -30,11 +31,11 @@ const fake = db as unknown as FakeFirestore;
 const SITE = "https://award.example";
 const BEFORE_REVEAL = new Date("2026-12-01T00:00:00Z");
 
-function postJson(body: unknown) {
+function postJson(body: unknown, ip = "203.0.113.7") {
   return POST(
     new Request("http://localhost/api/ceremonies", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "x-forwarded-for": ip },
       body: typeof body === "string" ? body : JSON.stringify(body),
     }),
   );
@@ -52,6 +53,7 @@ beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(BEFORE_REVEAL);
   vi.stubEnv("NEXT_PUBLIC_SITE_URL", SITE);
+  vi.stubEnv("IP_HASH_SALT", "test-salt");
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
 
@@ -157,6 +159,52 @@ describe("POST /api/ceremonies", () => {
         message: "올해 시상식은 끝났어요",
       });
     }
+    expect(fake.creates).toHaveLength(0);
+  });
+});
+
+describe("POST /api/ceremonies 요청 횟수 제한", () => {
+  const { limit, windowSec } = RATE_LIMIT_RULES.createCeremony;
+  const rateDocs = () =>
+    [...fake.docs.keys()].filter((key) => key.startsWith("rateLimits/"));
+
+  it(`같은 IP는 10분에 ${limit}개까지, 그다음은 429와 Retry-After`, async () => {
+    for (let i = 0; i < limit; i++) {
+      expect((await postJson({ name: `지민${i}` })).status).toBe(201);
+    }
+    const res = await postJson({ name: "하나더" });
+    expect(res.status).toBe(429);
+    expect(await res.json()).toEqual({
+      error: "rate_limited",
+      message: "요청이 많아요. 잠시 후 다시 시도해주세요",
+    });
+    const retryAfter = Number(res.headers.get("Retry-After"));
+    expect(retryAfter).toBeGreaterThan(0);
+    expect(retryAfter).toBeLessThanOrEqual(windowSec);
+    expect(fake.creates).toHaveLength(limit); // 막힌 요청은 시상식을 만들지 않는다
+
+    // 다른 IP는 영향 없음
+    expect((await postJson({ name: "하은" }, "198.51.100.9")).status).toBe(201);
+  });
+
+  it("이름 검증에 실패한 요청은 횟수에 넣지 않아요", async () => {
+    await postJson({ name: "" });
+    await postJson("{bad");
+    expect(rateDocs()).toHaveLength(0);
+  });
+
+  it("rateLimits 문서 id에 IP 원문이 들어가지 않아요", async () => {
+    await postJson({ name: "지민" });
+    const keys = rateDocs();
+    expect(keys).toHaveLength(1);
+    expect(keys[0]).not.toContain("203.0.113.7");
+    expect(JSON.stringify(fake.docs.get(keys[0]))).not.toContain("203.0.113.7");
+  });
+
+  it("IP_HASH_SALT가 없으면 500으로 막아요", async () => {
+    vi.stubEnv("IP_HASH_SALT", "");
+    const res = await postJson({ name: "지민" });
+    expect(res.status).toBe(500);
     expect(fake.creates).toHaveLength(0);
   });
 });
