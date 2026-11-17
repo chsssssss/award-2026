@@ -53,3 +53,6 @@ next-env.d.ts
 .eslintcache
 .turbo
 .swc
+
+# curl cookie jars from README examples
+cookies*.txt

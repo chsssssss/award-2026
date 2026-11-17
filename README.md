@@ -85,7 +85,55 @@ Invoke-RestMethod -Uri "http://localhost:3000/api/ceremonies/$($res.slug)"
 
 `Invoke-RestMethod`는 4xx·5xx 응답에서 예외를 던져요. 에러 body(`{ error, message }`)를 보려면 PowerShell 7 이상에서 `-SkipHttpErrorCheck`를 붙이세요.
 
+### 상 주기 (친구 화면)
+
+같은 친구는 한 시상식에 한 번만 상을 줄 수 있어요. 친구는 `voterId` 쿠키로 구분해요.
+첫 요청 응답의 `Set-Cookie`로 쿠키를 받으니, curl에서는 `-c`(저장)와 `-b`(보내기)로 같은 파일을 써요.
+
+맥 / 리눅스:
+
+```bash
+SLUG=<slug>   # 위에서 만든 시상식
+
+# 프리셋 상 주기(이름 공개). 쿠키가 cookies.txt에 저장돼요.
+curl -i -c cookies.txt -b cookies.txt -X POST http://localhost:3000/api/ceremonies/$SLUG/trophies \
+  -H 'Content-Type: application/json' \
+  -d '{"awardId":"laugh","reason":"매일 웃게 해줘서","anonymous":false,"senderName":"하은"}'
+# → 201 {"ok":true}
+
+# 같은 쿠키로 한 번 더 → 409 already_given
+curl -i -c cookies.txt -b cookies.txt -X POST http://localhost:3000/api/ceremonies/$SLUG/trophies \
+  -H 'Content-Type: application/json' \
+  -d '{"awardId":"mood","reason":"","anonymous":true}'
+
+# 다른 친구인 척 하려면 쿠키 파일을 바꿔요. 직접 지은 상은 awardId "custom" + customName('상'은 자동으로 붙어요)
+curl -i -c cookies-friend2.txt -b cookies-friend2.txt -X POST http://localhost:3000/api/ceremonies/$SLUG/trophies \
+  -H 'Content-Type: application/json' \
+  -d '{"awardId":"custom","customName":"야식 요정","reason":"","anonymous":true}'
+
+# 개수 확인(내용은 공개 전까지 나오지 않아요)
+curl -s http://localhost:3000/api/ceremonies/$SLUG
+```
+
+윈도우(PowerShell): `-SessionVariable`로 받은 쿠키를 다음 요청에 `-WebSession`으로 넘겨요.
+
+```powershell
+$slug = "<slug>"
+$uri = "http://localhost:3000/api/ceremonies/$slug/trophies"
+$body = @{ awardId = "laugh"; reason = "매일 웃게 해줘서"; anonymous = $false; senderName = "하은" } | ConvertTo-Json
+Invoke-RestMethod -Method Post -Uri $uri -SessionVariable friend `
+  -ContentType "application/json; charset=utf-8" `
+  -Body ([System.Text.Encoding]::UTF8.GetBytes($body))
+
+# 같은 친구로 다시 보내기 → 409 (PowerShell 7이면 -SkipHttpErrorCheck로 body 확인)
+Invoke-RestMethod -Method Post -Uri $uri -WebSession $friend `
+  -ContentType "application/json; charset=utf-8" `
+  -Body ([System.Text.Encoding]::UTF8.GetBytes($body))
+```
+
 ### 응답 코드
+
+시상식 만들기·조회:
 
 | 상황 | 상태 | body |
 |---|---|---|
@@ -95,3 +143,15 @@ Invoke-RestMethod -Uri "http://localhost:3000/api/ceremonies/$($res.slug)"
 | 같은 IP에서 10분에 20개 넘게 만들기 | 429 | `{ error: "rate_limited", message }` + `Retry-After`(초) |
 | 공개 시각(2026-12-31 21:00 KST) 이후 만들기 | 410 | `{ error: "season_over", message }` |
 | 없는 시상식, 숨김 처리, slug 형식 오류 | 404 | `{ error: "not_found", message }` |
+
+상 주기(`POST /api/ceremonies/[slug]/trophies`):
+
+| 상황 | 상태 | body |
+|---|---|---|
+| 상 주기 성공 | 201 | `{ ok: true }` |
+| 입력 검증 실패(없는 awardId, 상 이름·닉네임 누락, 글자 수 초과) | 400 | `{ error: "invalid", field, message }` |
+| body가 JSON이 아님 | 400 | `{ error: "bad_request", message }` |
+| 없는 시상식, 숨김 처리, slug 형식 오류 | 404 | `{ error: "not_found", message }` |
+| 이미 이 시상식에 상을 줌(같은 voterId) | 409 | `{ error: "already_given", message }` |
+| 시상식의 공개 시각이 지남 | 410 | `{ error: "closed", message }` |
+| 같은 IP에서 10분에 60개 넘게 만들기 | 429 | `{ error: "rate_limited", message }` + `Retry-After`(초) |

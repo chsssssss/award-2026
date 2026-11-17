@@ -39,7 +39,7 @@ function toDate(value: unknown): Date | null {
   return value instanceof Timestamp ? value.toDate() : null;
 }
 
-function toCeremony(slug: string, data: DocumentData): Ceremony {
+export function toCeremony(slug: string, data: DocumentData): Ceremony {
   return {
     slug,
     name: typeof data.name === "string" ? data.name : "",
