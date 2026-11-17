@@ -22,3 +22,25 @@ export function writeStorage(key: string, value: string): boolean {
 
 /** 이 브라우저에서 관리 링크 저장 안내를 확인했다는 표시. */
 export const savedLinkKey = (slug: string) => `saved:${slug}`;
+
+/** 이 브라우저에서 이 시상식에 상을 줬다는 표시(localStorage). */
+export const gaveKey = (slug: string) => `gave:${slug}`;
+
+export function readSession(key: string): string | null {
+  try {
+    return globalThis.sessionStorage?.getItem(key) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** 저장에 성공하면 true. */
+export function writeSession(key: string, value: string): boolean {
+  try {
+    if (!globalThis.sessionStorage) return false;
+    globalThis.sessionStorage.setItem(key, value);
+    return true;
+  } catch {
+    return false;
+  }
+}

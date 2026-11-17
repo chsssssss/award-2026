@@ -32,3 +32,8 @@ export function formatKoreanDate(date: Date): string {
   const kst = toKstWallClock(date);
   return `${kst.getUTCMonth() + 1}월 ${kst.getUTCDate()}일`;
 }
+
+/** D-day 배지 문구. 당일(0 이하)은 "D-DAY". */
+export function formatDday(days: number): string {
+  return days <= 0 ? "D-DAY" : `D-${days}`;
+}
