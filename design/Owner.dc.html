@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>내 시상식 (공개 전)</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Nanum+Myeongjo:wght@700;800&amp;family=Noto+Sans+KR:wght@400;500;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#E8B84A}a:hover{color:#F3CD72}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; padding: 24px 24px 32px; background: #15131F; color: #F6F1E7; font-family: 'Noto Sans KR', sans-serif; display: flex; flex-direction: column; overflow: hidden">
+
+  <div style="display: flex; align-items: center; justify-content: space-between">
+    <h1 style="margin: 0; font-family: 'Nanum Myeongjo', serif; font-weight: 800; font-size: 24px; letter-spacing: -0.4px">지민의 2026 시상식</h1>
+    <span style="font-size: 12px; font-weight: 700; color: #1A1526; background: #E8B84A; border-radius: 999px; padding: 5px 10px">개최 중</span>
+  </div>
+  <p style="margin: 6px 0 0; font-size: 14px; color: #ABA5BF">친구들이 보내는 트로피를 모으고 있어요</p>
+
+  <div style="margin-top: 20px; padding: 20px; border-radius: 20px; background: #221D33; display: flex; align-items: center; justify-content: space-between">
+    <div style="display: flex; flex-direction: column; gap: 2px">
+      <span style="font-size: 13px; color: #ABA5BF">공개까지</span>
+      <span style="font-family: 'Nanum Myeongjo', serif; font-weight: 800; font-size: 40px; line-height: 1.1; color: #E8B84A">D-14</span>
+    </div>
+    <div style="text-align: right; font-size: 14px; line-height: 1.5">12월 31일<br><span style="color: #ABA5BF">한꺼번에 공개</span></div>
+  </div>
+
+  <div style="margin-top: 16px; padding: 20px; border-radius: 20px; background: #221D33">
+    <div style="display: flex; align-items: baseline; justify-content: space-between">
+      <span style="font-size: 15px; font-weight: 700">도착한 트로피</span>
+      <span style="font-size: 15px; font-weight: 700; color: #E8B84A">7개</span>
+    </div>
+    <div style="margin-top: 14px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px">
+      <sc-for list="{{ slots }}" as="s" hint-placeholder-count="8">
+        <sc-if value="{{ s.locked }}" hint-placeholder-val="{{ true }}">
+          <div style="height: 72px; border-radius: 14px; background: #1A1727; display: flex; align-items: center; justify-content: center">
+            <svg width="40" height="40" viewBox="0 0 64 64" aria-hidden="true">
+              <path d="M20 14 H13 V18 C13 23 16 26 20.5 26 M44 14 H51 V18 C51 23 48 26 43.5 26" fill="none" stroke="#3B3555" stroke-width="3" stroke-linecap="round"></path>
+              <path d="M20 10 H44 V24 C44 31.7 38.6 38 32 38 C25.4 38 20 31.7 20 24 Z" fill="#3B3555"></path>
+              <rect x="29.5" y="37.5" width="5" height="8.5" fill="#3B3555"></rect>
+              <rect x="21" y="46" width="22" height="8" rx="2" fill="#3B3555"></rect>
+              <text x="32" y="29.5" text-anchor="middle" font-size="16" font-weight="700" fill="#ABA5BF" font-family="sans-serif">?</text>
+            </svg>
+          </div>
+        </sc-if>
+        <sc-if value="{{ s.empty }}" hint-placeholder-val="{{ false }}">
+          <div style="height: 72px; box-sizing: border-box; border-radius: 14px; border: 1.5px dashed #3A3452"></div>
+        </sc-if>
+      </sc-for>
+    </div>
+    <div style="margin-top: 14px; display: flex; align-items: center; gap: 6px; font-size: 13px; color: #ABA5BF">
+      <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2" fill="none" stroke="#ABA5BF" stroke-width="2"></rect><path d="M8 11 V8 A4 4 0 0 1 16 8 V11" fill="none" stroke="#ABA5BF" stroke-width="2"></path></svg>
+      <span>어떤 상인지는 공개 날까지 비밀이에요</span>
+    </div>
+  </div>
+
+  <div style="margin-top: 20px; font-size: 13px; font-weight: 500; color: #ABA5BF">내 시상식 링크</div>
+  <div style="margin-top: 8px; display: flex; gap: 8px">
+    <div style="flex-grow: 1; min-width: 0; height: 52px; box-sizing: border-box; padding: 0 16px; border-radius: 14px; background: #1D1A2B; border: 1px solid #3A3452; display: flex; align-items: center; font-size: 15px; overflow: hidden; white-space: nowrap">[서비스주소]/jimin26</div>
+    <button type="button" onClick="{{ copy }}" style="width: 76px; height: 52px; border-radius: 14px; border: 1px solid #E8B84A; background: transparent; color: #E8B84A; font-size: 15px; font-weight: 700; font-family: inherit; cursor: pointer">{{ copyLabel }}</button>
+  </div>
+
+  <div style="flex-grow: 1"></div>
+
+  <a href="StoryInvite.dc.html" style="height: 56px; border-radius: 16px; background: #E8B84A; color: #1A1526; font-size: 17px; font-weight: 700; text-decoration: none; display: flex; align-items: center; justify-content: center">스토리용 이미지 저장하기</a>
+  <div style="margin-top: 10px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px">
+    <a href="Vote.dc.html" style="height: 48px; box-sizing: border-box; border-radius: 14px; border: 1px solid #3A3452; color: #F6F1E7; font-size: 14px; font-weight: 500; text-decoration: none; display: flex; align-items: center; justify-content: center">친구 화면 보기</a>
+    <a href="Reveal.dc.html" style="height: 48px; box-sizing: border-box; border-radius: 14px; border: 1px solid #3A3452; color: #F6F1E7; font-size: 14px; font-weight: 500; text-decoration: none; display: flex; align-items: center; justify-content: center">공개 화면 미리보기</a>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { copied: false };
+  }
+  renderVals() {
+    const slots = [];
+    for (let i = 0; i < 8; i++) {
+      slots.push({ locked: i < 7, empty: i >= 7 });
+    }
+    return {
+      slots: slots,
+      copyLabel: this.state.copied ? '복사됨' : '복사',
+      copy: () => this.setState({ copied: true })
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -30,9 +30,16 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# local env files
-.env*.local
-.env
+# env files (can opt-in for committing if needed)
+.env*
+.env.local
+!.env.example
+
+# Firebase service account keys
+*-firebase-adminsdk-*.json
+
+# local font source files
+fonts-src/
 
 # vercel
 .vercel

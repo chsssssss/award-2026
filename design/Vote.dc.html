@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>친구가 상 주기</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Nanum+Myeongjo:wght@700;800&amp;family=Noto+Sans+KR:wght@400;500;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#E8B84A}a:hover{color:#F3CD72}
+input::placeholder,textarea::placeholder{color:#948EAD}
+</style>
+</helmet>
+<div style="width: 390px; height: 1080px; box-sizing: border-box; padding: 24px 24px 32px; background: #15131F; color: #F6F1E7; font-family: 'Noto Sans KR', sans-serif; display: flex; flex-direction: column; overflow: hidden">
+
+  <div style="display: flex; align-items: center; justify-content: space-between; height: 28px">
+    <span style="font-size: 13px; color: #ABA5BF">지민님의 2026 시상식</span>
+    <span style="font-size: 12px; font-weight: 700; color: #E8B84A; border: 1px solid #E8B84A; border-radius: 999px; padding: 3px 10px">D-14</span>
+  </div>
+  <h1 style="margin: 16px 0 0; font-family: 'Nanum Myeongjo', serif; font-weight: 800; font-size: 26px; line-height: 1.35; letter-spacing: -0.4px">지민에게<br>어떤 상을 줄까요?</h1>
+  <p style="margin: 6px 0 0; font-size: 14px; color: #ABA5BF">하나만 고를 수 있어요</p>
+
+  <div style="margin-top: 18px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px">
+    <sc-for list="{{ items }}" as="a" hint-placeholder-count="12">
+      <button type="button" onClick="{{ a.pick }}" aria-pressed="{{ a.selected }}" style="position: relative; height: 66px; box-sizing: border-box; padding: 0 14px; border-radius: 14px; border: 2px solid {{ a.border }}; background: {{ a.bg }}; color: #F6F1E7; font-family: inherit; text-align: left; cursor: pointer; display: flex; flex-direction: column; justify-content: center; gap: 3px">
+        <span style="font-size: 15px; font-weight: 700">{{ a.name }}</span>
+        <span style="font-size: 12px; color: #ABA5BF">{{ a.desc }}</span>
+        <sc-if value="{{ a.selected }}" hint-placeholder-val="{{ false }}">
+          <svg style="position: absolute; top: 7px; right: 7px" width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="11" fill="#E8B84A"></circle><path d="M7 12.5 L10.5 16 L17 9" fill="none" stroke="#1A1526" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+        </sc-if>
+      </button>
+    </sc-for>
+  </div>
+  <button type="button" style="margin-top: 10px; height: 52px; border-radius: 14px; border: 1.5px dashed #4A4366; background: transparent; color: #ABA5BF; font-size: 14px; font-weight: 500; font-family: inherit; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px">
+    <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5 V19 M5 12 H19" fill="none" stroke="#ABA5BF" stroke-width="2" stroke-linecap="round"></path></svg>
+    <span>직접 상 이름 짓기</span>
+  </button>
+
+  <label for="reason" style="margin-top: 24px; font-size: 13px; font-weight: 500; color: #ABA5BF">시상 사유 한 줄</label>
+  <textarea id="reason" rows="2" placeholder="예) 단톡방을 살린 일등공신" style="margin-top: 8px; box-sizing: border-box; width: 100%; padding: 14px 16px; border-radius: 14px; border: 1px solid #3A3452; background: #221D33; color: #F6F1E7; font-size: 15px; font-family: inherit; line-height: 1.5; resize: none; outline: none"></textarea>
+
+  <label for="sender" style="margin-top: 20px; font-size: 13px; font-weight: 500; color: #ABA5BF">보내는 사람</label>
+  <div style="margin-top: 8px; display: flex; gap: 8px">
+    <input id="sender" type="text" placeholder="닉네임" style="flex-grow: 1; min-width: 0; height: 52px; box-sizing: border-box; padding: 0 16px; border-radius: 14px; border: 1px solid #3A3452; background: #221D33; color: #F6F1E7; font-size: 15px; font-family: inherit; outline: none">
+    <button type="button" onClick="{{ toggleAnon }}" aria-pressed="{{ anon }}" style="width: 96px; height: 52px; border-radius: 14px; border: 1.5px solid {{ anonBorder }}; background: {{ anonBg }}; color: {{ anonColor }}; font-size: 14px; font-weight: 700; font-family: inherit; cursor: pointer">익명으로</button>
+  </div>
+
+  <div style="margin-top: 16px; display: flex; align-items: center; gap: 6px; font-size: 12px; color: #ABA5BF">
+    <svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2" fill="none" stroke="#ABA5BF" stroke-width="2"></rect><path d="M8 11 V8 A4 4 0 0 1 16 8 V11" fill="none" stroke="#ABA5BF" stroke-width="2"></path></svg>
+    <span>어떤 상인지는 12월 31일에 지민님에게 공개돼요</span>
+  </div>
+
+  <div style="flex-grow: 1"></div>
+
+  <sc-if value="{{ hasPick }}" hint-placeholder-val="{{ false }}">
+    <a href="Done.dc.html" style="height: 56px; border-radius: 16px; background: #E8B84A; color: #1A1526; font-size: 17px; font-weight: 700; text-decoration: none; display: flex; align-items: center; justify-content: center">트로피 수여하기</a>
+  </sc-if>
+  <sc-if value="{{ noPick }}" hint-placeholder-val="{{ true }}">
+    <button type="button" disabled="{{ true }}" style="height: 56px; border-radius: 16px; border: none; background: #2C2740; color: #ABA5BF; font-size: 17px; font-weight: 700; font-family: inherit">상을 하나 골라주세요</button>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1080}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { picked: null, anon: false };
+  }
+  renderVals() {
+    const awards = [
+      { id: 'laugh', name: '웃음 지분 1위상', desc: '제일 많이 웃겨줌' },
+      { id: 'mood', name: '분위기 메이커상', desc: '모임 텐션 담당' },
+      { id: 'counsel', name: '고민 상담소장상', desc: '새벽 전화도 OK' },
+      { id: 'food', name: '맛집 레이더상', desc: '따라가면 성공' },
+      { id: 'godlife', name: '갓생 실천상', desc: '미라클 모닝 장인' },
+      { id: 'twist', name: '반전 매력상', desc: '알수록 새로움' },
+      { id: 'reply', name: '답장 광속상', desc: '1분 안에 답장' },
+      { id: 'ghost', name: '갑분잠수상', desc: '연락 두절의 아이콘' },
+      { id: 'late', name: '프로 지각러상', desc: '5분만 늦을게' },
+      { id: 'flex', name: '통 큰 플렉스상', desc: '계산은 내가' },
+      { id: 'growth', name: '올해의 성장상', desc: '작년보다 멋짐' },
+      { id: 'next', name: '내년 기대주상', desc: '내년이 더 기대됨' }
+    ];
+    const picked = this.state.picked;
+    const anon = this.state.anon;
+    return {
+      items: awards.map((a) => ({
+        name: a.name,
+        desc: a.desc,
+        selected: a.id === picked,
+        border: a.id === picked ? '#E8B84A' : '#2C2740',
+        bg: a.id === picked ? '#2A2440' : '#1D1A2B',
+        pick: () => this.setState({ picked: a.id })
+      })),
+      hasPick: picked !== null,
+      noPick: picked === null,
+      anon: anon,
+      anonBorder: anon ? '#E8B84A' : '#3A3452',
+      anonBg: anon ? '#E8B84A' : 'transparent',
+      anonColor: anon ? '#1A1526' : '#ABA5BF',
+      toggleAnon: () => this.setState({ anon: !anon })
+    };
+  }
+}
+</script>
+</body>
+</html>
