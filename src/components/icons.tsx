@@ -37,3 +37,11 @@ export function LockIcon({ size = 13, color = colors.muted, className }: IconPro
     </svg>
   );
 }
+
+export function CloseIcon({ size = 22, color = colors.ink, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" className={className}>
+      <path d="M6 6 L18 18 M18 6 L6 18" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}

@@ -3,6 +3,7 @@
 import { useState, useSyncExternalStore, type ReactNode } from "react";
 
 import { Button } from "@/components/Button";
+import { ShareSheet } from "@/components/ShareSheet";
 import { TrophyIcon } from "@/components/TrophyIcon";
 import type { ManageBeforeReveal } from "@/lib/manage-types";
 import { buildFriendUrl, buildManageUrl, parseOwnerToken } from "@/lib/owner-link";
@@ -119,7 +120,8 @@ function BeforeReveal({
   days: number;
   newFrom: number | null;
 }) {
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || window.location.origin;
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const friendUrl = buildFriendUrl(process.env.NEXT_PUBLIC_SITE_URL || window.location.origin, slug);
 
   return (
     <>
@@ -149,17 +151,11 @@ function BeforeReveal({
 
       <TrophyGrid count={data.trophyCount} newFrom={newFrom} />
 
-      <FriendLink url={buildFriendUrl(siteUrl, slug)} />
+      <FriendLink url={friendUrl} />
 
       <div className="min-h-8 flex-1" />
 
-      {/* 11/26에 스토리 이미지와 연결 */}
-      <Button disabled>
-        <span>스토리용 이미지 저장하기</span>
-        <span className="ml-2 rounded-full border border-line px-2 py-0.5 text-[11px] font-medium">
-          곧 열려요
-        </span>
-      </Button>
+      <Button onClick={() => setSheetOpen(true)}>스토리용 이미지 저장하기</Button>
       <Button
         variant="outline"
         href={`/s/${slug}`}
@@ -169,6 +165,16 @@ function BeforeReveal({
       >
         친구 화면 보기
       </Button>
+
+      {sheetOpen && (
+        <ShareSheet
+          title="스토리 초대 이미지"
+          imageUrl={`/api/story/invite/${slug}`}
+          imageFileName="award-2026-invite.png"
+          linkToCopy={friendUrl}
+          onClose={() => setSheetOpen(false)}
+        />
+      )}
     </>
   );
 }

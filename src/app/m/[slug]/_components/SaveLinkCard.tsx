@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
+import { useId, useState } from "react";
 
 import { Button } from "@/components/Button";
+import { ManualCopyField } from "@/components/ManualCopyField";
 import { buildRevealIcs, googleCalendarUrl } from "@/lib/calendar";
-import { copyText } from "@/lib/clipboard";
 import { savedLinkKey, writeStorage } from "@/lib/storage";
+import { useCopy } from "@/lib/use-copy";
 
 type Props = {
   slug: string;
@@ -14,30 +15,15 @@ type Props = {
   onSaved: () => void;
 };
 
-type CopyState = "idle" | "copied" | "manual";
-
-function selectAll(input: HTMLInputElement | null) {
-  if (input) {
-    input.focus();
-    input.select();
-  }
-}
-
 export function SaveLinkCard({ slug, manageUrl, revealAt, onSaved }: Props) {
   const titleId = useId();
   const calendarId = useId();
-  const [copyState, setCopyState] = useState<CopyState>("idle");
+  const { state: copyState, copy } = useCopy();
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [icsFailed, setIcsFailed] = useState(false);
 
-  useEffect(() => {
-    if (copyState !== "copied") return;
-    const timer = setTimeout(() => setCopyState("idle"), 2000);
-    return () => clearTimeout(timer);
-  }, [copyState]);
-
   async function copyLink() {
-    setCopyState((await copyText(manageUrl)) ? "copied" : "manual");
+    await copy(manageUrl);
   }
 
   function downloadIcs() {
@@ -85,22 +71,7 @@ export function SaveLinkCard({ slug, manageUrl, revealAt, onSaved }: Props) {
           {copyState === "copied" ? "링크를 복사했어요" : ""}
         </p>
 
-        {copyState === "manual" && (
-          <div>
-            <input
-              ref={selectAll}
-              readOnly
-              value={manageUrl}
-              onFocus={(e) => e.currentTarget.select()}
-              aria-label="관리 링크"
-              aria-describedby={`${titleId}-manual`}
-              className="h-12 w-full rounded-[14px] border border-line bg-card-2 px-3 text-base text-ink outline-none focus:border-gold"
-            />
-            <p id={`${titleId}-manual`} className="mt-1.5 text-xs text-muted">
-              자동으로 복사되지 않았어요. 링크를 길게 눌러 복사해 주세요
-            </p>
-          </div>
-        )}
+        {copyState === "manual" && <ManualCopyField value={manageUrl} label="관리 링크" />}
 
         <Button
           variant="outline"

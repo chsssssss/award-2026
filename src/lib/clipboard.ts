@@ -2,6 +2,8 @@
 
 /** Clipboard API가 없을 때 쓰는 예전 방식. 클릭 직후(사용자 동작 안)에서만 동작한다. */
 function legacyCopy(text: string): boolean {
+  // 임시 textarea로 포커스가 옮겨 갔다가 지워지면 포커스가 사라지므로 끝나면 되돌린다
+  const previousFocus = document.activeElement as HTMLElement | null;
   try {
     const textarea = document.createElement("textarea");
     textarea.value = text;
@@ -17,6 +19,8 @@ function legacyCopy(text: string): boolean {
     return ok;
   } catch {
     return false;
+  } finally {
+    previousFocus?.focus?.({ preventScroll: true });
   }
 }
 
