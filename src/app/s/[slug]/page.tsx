@@ -4,7 +4,9 @@ import { Suspense } from "react";
 import { TrophyIcon } from "@/components/TrophyIcon";
 import { daysUntil, formatDday, formatKoreanDate } from "@/lib/time";
 
-import { ReportLink } from "./_components/ReportLink";
+import { LegalLinks } from "@/components/LegalLinks";
+
+import { ReportLink, reportMailto } from "./_components/ReportLink";
 import { VoteForm } from "./_components/VoteForm";
 import { ceremonyMetadata, loadCeremony } from "./load";
 
@@ -42,7 +44,7 @@ async function VoteContent({ params }: { params: Promise<{ slug: string }> }) {
         name={ceremony.name}
         revealDateLabel={formatKoreanDate(ceremony.revealAt)}
       />
-      <ReportLink slug={slug} />
+      <Footer slug={slug} />
     </main>
   );
 }
@@ -59,7 +61,13 @@ function ClosedView({ slug, name }: { slug: string; name: string }) {
           <p className="mt-2 text-sm text-muted">내년에 또 만나요</p>
         </div>
       </div>
-      <ReportLink slug={slug} />
+      <Footer slug={slug} />
     </main>
   );
+}
+
+/** 맨 아래 작은 글씨: 개인정보처리방침 · 이용약관 · 신고하기 */
+function Footer({ slug }: { slug: string }) {
+  const href = reportMailto(slug);
+  return <LegalLinks className="mt-1" extra={href ? <ReportLink href={href} /> : undefined} />;
 }

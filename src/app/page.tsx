@@ -1,6 +1,7 @@
 import { connection } from "next/server";
 import { Suspense } from "react";
 
+import { LegalLinks } from "@/components/LegalLinks";
 import { Sparkle } from "@/components/Sparkle";
 import { TrophyIcon } from "@/components/TrophyIcon";
 import { colors } from "@/lib/colors";
@@ -70,6 +71,8 @@ export default function Home() {
       <Suspense fallback={<CreateForm />}>
         <CreateSection />
       </Suspense>
+
+      <LegalLinks className="mt-2" />
     </main>
   );
 }

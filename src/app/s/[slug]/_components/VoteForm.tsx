@@ -13,6 +13,7 @@ import {
 
 import { Button } from "@/components/Button";
 import { CheckCircleIcon, LockIcon, PlusIcon } from "@/components/icons";
+import { ConsentNote } from "@/components/LegalLinks";
 import { AWARDS, getAward, type AwardId } from "@/lib/awards";
 import { colors } from "@/lib/colors";
 import { REASON_MAX } from "@/lib/constants";
@@ -25,6 +26,7 @@ import {
   normalizeText,
 } from "@/lib/schemas";
 import { gaveKey, readStorage, writeStorage } from "@/lib/storage";
+import { track } from "@/lib/track";
 
 type Props = {
   slug: string;
@@ -85,6 +87,10 @@ export function VoteForm({ slug, name, revealDateLabel }: Props) {
     if (pick === "custom") customInput.current?.focus();
   }, [pick]);
 
+  useEffect(() => {
+    void track("vote_page_view", { slug });
+  }, [slug]);
+
   const clearError = (field: Field) =>
     setErrors((prev) => (prev[field] ? { ...prev, [field]: undefined } : prev));
 
@@ -113,6 +119,7 @@ export function VoteForm({ slug, name, revealDateLabel }: Props) {
     const result = await postJson(`/api/ceremonies/${slug}/trophies`, parsed.data);
 
     if (result.ok) {
+      void track("trophy_submitted", { awardId: parsed.data.awardId });
       setSentHere(true);
       writeStorage(gaveKey(slug), String(Date.now()));
       const awardName =
@@ -327,6 +334,7 @@ export function VoteForm({ slug, name, revealDateLabel }: Props) {
       <Button type="submit" disabled={!pick || submitting}>
         {!pick ? "상을 하나 골라주세요" : submitting ? "수여하는 중…" : "트로피 수여하기"}
       </Button>
+      <ConsentNote className="mt-2" />
 
       <div className="mt-3 flex justify-center">
         <Link

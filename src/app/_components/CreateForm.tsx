@@ -3,31 +3,25 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 
 import { Button } from "@/components/Button";
+import { ConsentNote } from "@/components/LegalLinks";
+import { refFromSearch } from "@/lib/analytics-url";
 import { postJson } from "@/lib/fetch-json";
 import { createCeremonySchema } from "@/lib/schemas";
+import { track } from "@/lib/track";
 
 type CreateResponse = { slug: string; manageUrl: string };
 
 /** ?ref= 값. 분석용으로 보관만 한다(영문·숫자·_- 64자까지). */
-function readRefParam(): string | null {
-  try {
-    const value = new URLSearchParams(window.location.search).get("ref");
-    return value && /^[A-Za-z0-9_-]{1,64}$/.test(value) ? value : null;
-  } catch {
-    return null;
-  }
-}
-
 export function CreateForm() {
   const inputId = useId();
   const errorId = useId();
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const refParam = useRef<string | null>(null);
+  const refParam = useRef("direct");
 
   useEffect(() => {
-    refParam.current = readRefParam();
+    refParam.current = refFromSearch(window.location.search); // ?ref= 유입 경로(없으면 direct)
   }, []);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
@@ -44,6 +38,11 @@ export function CreateForm() {
     setSubmitting(true);
     const result = await postJson<CreateResponse>("/api/ceremonies", parsed.data);
     if (result.ok) {
+      // 페이지를 떠나도 전송되도록 beacon으로 보내고, 분석 도구를 기다리는 건 최대 0.5초
+      await Promise.race([
+        track("ceremony_created", { ref: refParam.current }, { beacon: true }),
+        new Promise((resolve) => setTimeout(resolve, 500)),
+      ]);
       // 버튼은 비활성 상태로 둔 채 관리 페이지로 이동한다(중복 생성 방지).
       window.location.assign(result.data.manageUrl);
       return;
@@ -85,7 +84,8 @@ export function CreateForm() {
       <Button type="submit" disabled={submitting} className="mt-3">
         {submitting ? "여는 중…" : "내 시상식 열기"}
       </Button>
-      <p className="mt-3 text-center text-[13px] text-subtle">
+      <ConsentNote className="mt-2" />
+      <p className="mt-2 text-center text-[13px] text-subtle">
         가입 없이 10초면 끝나요
       </p>
     </form>

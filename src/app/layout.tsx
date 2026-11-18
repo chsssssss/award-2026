@@ -1,5 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Nanum_Myeongjo, Noto_Sans_KR } from "next/font/google";
+import { Suspense } from "react";
+
+import { Analytics } from "@/components/Analytics";
 import { baseOpenGraph, SITE_DESCRIPTION, SITE_NAME, siteUrl } from "@/lib/site";
 
 import "./globals.css";
@@ -46,6 +49,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <div className="mx-auto flex min-h-dvh w-full max-w-[430px] flex-col px-6">
           {children}
         </div>
+        <Suspense fallback={null}>
+          <Analytics />
+        </Suspense>
       </body>
     </html>
   );

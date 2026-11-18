@@ -1,13 +1,13 @@
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
-import { Button } from "@/components/Button";
 import { Sparkle } from "@/components/Sparkle";
 import { TrophyIcon } from "@/components/TrophyIcon";
 import { colors } from "@/lib/colors";
 import { formatKoreanDate } from "@/lib/time";
 
 import { ceremonyMetadata, loadCeremony } from "../load";
+import { DoneCta } from "./_components/DoneCta";
 import { GivenAwardCard } from "./_components/GivenAwardCard";
 
 export function generateMetadata({ params }: PageProps<"/s/[slug]/done">) {
@@ -58,9 +58,7 @@ async function DoneContent({ params }: { params: Promise<{ slug: string }> }) {
       <div className="flex flex-col items-center rounded-[20px] border border-line px-5 py-6 text-center">
         <span className="text-lg font-bold">나도 친구들에게 상 받아볼까?</span>
         <span className="mt-1.5 text-sm text-muted">올해가 가기 전에 내 시상식을 열어보세요</span>
-        <Button href="/?ref=done" className="mt-[18px]">
-          내 시상식 열기
-        </Button>
+        <DoneCta className="mt-[18px]" />
         <span className="mt-2.5 text-[13px] text-subtle">가입 없이 10초면 끝나요</span>
       </div>
     </main>

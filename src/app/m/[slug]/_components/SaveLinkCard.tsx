@@ -6,6 +6,7 @@ import { Button } from "@/components/Button";
 import { ManualCopyField } from "@/components/ManualCopyField";
 import { buildRevealIcs, googleCalendarUrl } from "@/lib/calendar";
 import { savedLinkKey, writeStorage } from "@/lib/storage";
+import { track } from "@/lib/track";
 import { useCopy } from "@/lib/use-copy";
 
 type Props = {
@@ -23,7 +24,7 @@ export function SaveLinkCard({ slug, manageUrl, revealAt, onSaved }: Props) {
   const [icsFailed, setIcsFailed] = useState(false);
 
   async function copyLink() {
-    await copy(manageUrl);
+    if (await copy(manageUrl)) void track("manage_link_saved", { method: "copy" });
   }
 
   function downloadIcs() {
@@ -40,12 +41,14 @@ export function SaveLinkCard({ slug, manageUrl, revealAt, onSaved }: Props) {
       link.remove();
       setTimeout(() => URL.revokeObjectURL(url), 10_000);
       setIcsFailed(false);
+      void track("manage_link_saved", { method: "ics" });
     } catch {
       setIcsFailed(true);
     }
   }
 
   function markSaved() {
+    void track("manage_link_saved", { method: "confirm" });
     writeStorage(savedLinkKey(slug), String(Date.now()));
     onSaved(); // 저장에 실패해도(인앱 브라우저 등) 이번에는 카드를 접는다
   }
@@ -91,6 +94,7 @@ export function SaveLinkCard({ slug, manageUrl, revealAt, onSaved }: Props) {
             href={googleCalendarUrl(revealAt, manageUrl)}
             target="_blank"
             rel="noopener noreferrer"
+            onClick={() => void track("manage_link_saved", { method: "google_calendar" })}
           >
             Google 캘린더
           </Button>
