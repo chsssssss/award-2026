@@ -158,7 +158,7 @@ function BeforeReveal({
 
       <div className="min-h-8 flex-1" />
 
-      <Button onClick={() => setSheetOpen(true)}>인스타 스토리로 초대하기</Button>
+      <Button onClick={() => setSheetOpen(true)}>인스타 스토리에 올리기</Button>
       <Button
         variant="outline"
         href={`/s/${slug}`}
@@ -171,7 +171,7 @@ function BeforeReveal({
 
       {sheetOpen && (
         <ShareSheet
-          title="스토리 초대 이미지"
+          title="인스타 스토리에 올리기"
           imageUrl={`/api/story/invite/${slug}`}
           imageFileName="award-2026-invite.png"
           linkToCopy={friendUrl}
