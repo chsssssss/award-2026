@@ -159,15 +159,6 @@ function BeforeReveal({
       <div className="min-h-8 flex-1" />
 
       <Button onClick={() => setSheetOpen(true)}>인스타 스토리에 올리기</Button>
-      <Button
-        variant="outline"
-        href={`/s/${slug}`}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="mt-2.5"
-      >
-        친구 화면 보기
-      </Button>
 
       {sheetOpen && (
         <ShareSheet
