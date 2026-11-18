@@ -94,16 +94,14 @@ export default function PrivacyPage() {
               내 정보를 보거나 지워 달라고 이메일(<ContactLink />)로 요청할 수 있어요.
             </>,
             "시상식 주인공은 받은 메시지를 숨길 수 있어요.",
-            <>
-              <Todo>[요청 처리 기한·방법 확인 필요]</Todo>
-            </>,
+            "요청을 받은 날부터 10일 안에 처리해요.",
           ]}
         />
       </Section>
 
       <Section n={8} title="방침이 바뀌면">
         <p>
-          이 방침이 바뀌면 <Todo>[알리는 방법 확인 필요]</Todo>(으)로 알려 드려요.
+          이 방침이 바뀌면 서비스 화면에 공지해서 알려 드려요.
         </p>
       </Section>
     </LegalPage>

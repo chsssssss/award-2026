@@ -80,7 +80,7 @@ export default function TermsPage() {
 
       <Section n={7} title="약관이 바뀌면">
         <p>
-          이 약관이 바뀌면 <Todo>[알리는 방법 확인 필요]</Todo>(으)로 알려 드려요.
+          이 약관이 바뀌면 서비스 화면에 공지해서 알려 드려요.
         </p>
       </Section>
 

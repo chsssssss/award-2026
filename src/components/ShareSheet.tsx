@@ -3,8 +3,7 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
-import { Button } from "@/components/Button";
-import { CloseIcon } from "@/components/icons";
+import { CheckCircleIcon, CloseIcon } from "@/components/icons";
 import { ManualCopyField } from "@/components/ManualCopyField";
 import { isInAppBrowser } from "@/lib/inapp";
 import { canShareFile, fetchImageFile, shareImageFile } from "@/lib/share-image";
@@ -24,16 +23,32 @@ type Props = {
 const FOCUSABLE =
   'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
-/** 공유 창으로 바로 올릴 수 있을 때 / 이미지를 저장해서 올려야 할 때의 안내 */
-const STEPS = {
-  share: ["‘인스타 스토리에 공유하기’ 누르기", "공유 창에서 Instagram → 스토리 고르기", "링크 스티커에 복사한 주소 붙여넣기"],
-  save: ["이미지를 길게 눌러 저장", "인스타 스토리에 올리기", "링크 스티커에 복사한 주소 붙여넣기"],
-} as const;
+/** 단계 버튼: 지금 할 차례면 금색(primary), 아니면 테두리만. 크기는 같게 두어 바뀌어도 흔들리지 않는다. */
+function stepButtonClass(active: boolean) {
+  return `flex h-14 w-full items-center justify-center gap-1.5 rounded-2xl text-[17px] font-bold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold-light disabled:opacity-60 ${
+    active ? "bg-gold text-on-gold active:bg-gold-dark" : "border-[1.5px] border-line text-ink active:bg-card-2"
+  }`;
+}
+
+function StepLabel({ n, children }: { n: number; children: string }) {
+  return (
+    <p className="flex items-center gap-2.5 text-sm font-medium">
+      <span
+        aria-hidden="true"
+        className="flex size-6 shrink-0 items-center justify-center rounded-full bg-card text-xs font-bold text-gold"
+      >
+        {n}
+      </span>
+      <span>{children}</span>
+    </p>
+  );
+}
 
 /**
- * 인스타 스토리 공유 + 링크 복사를 돕는 전체 화면 시트. 부모가 열 때만 렌더한다(마운트 = 열림).
- * 휴대폰 공유 창(Web Share)으로 이미지를 넘겨 Instagram → 스토리로 바로 올리게 하고,
- * 공유를 못 하는 브라우저(일부 인앱 브라우저·컴퓨터)는 길게 눌러 저장하도록 안내한다.
+ * 인스타 스토리에 올리기를 돕는 전체 화면 시트. 부모가 열 때만 렌더한다(마운트 = 열림).
+ * 순서: ① 링크 복사(스토리 링크 스티커에 붙일 주소) → ② 인스타 스토리에 공유(휴대폰 공유 창 → Instagram → 스토리)
+ * → ③ 스토리에서 링크 스티커에 붙여넣기. 링크를 복사하면 ②가 금색 버튼으로 바뀐다.
+ * 공유 창을 못 쓰는 브라우저(일부 인앱 브라우저·컴퓨터)는 길게 눌러 저장하도록 안내한다.
  */
 export function ShareSheet({ imageUrl, imageFileName, linkToCopy, title, onClose }: Props) {
   const titleId = useId();
@@ -57,8 +72,14 @@ export function ShareSheet({ imageUrl, imageFileName, linkToCopy, title, onClose
   // 인앱 브라우저면 처음부터, 아니면 공유가 안 될 때 "길게 눌러 저장" 안내
   const [longPressHint, setLongPressHint] = useState(inApp);
 
+  // 한 번이라도 복사했으면 ① 완료로 본다(토스트·"복사했어요"는 잠시 뒤 사라져도 단계는 유지)
+  const [linkCopied, setLinkCopied] = useState(false);
+
   const copyLink = useCallback(async () => {
-    if (await copy(linkToCopy)) track("link_copied", { where: "share_sheet" });
+    if (await copy(linkToCopy)) {
+      setLinkCopied(true);
+      track("link_copied", { where: "share_sheet" });
+    }
   }, [copy, linkToCopy]);
 
   const loadFile = useCallback(() => {
@@ -69,16 +90,15 @@ export function ShareSheet({ imageUrl, imageFileName, linkToCopy, title, onClose
     return fileRef.current;
   }, [imageUrl, imageFileName]);
 
-  // 열릴 때: 기록, 링크 복사 시도(버튼을 누른 직후라 브라우저가 허용하는 시점), 이미지 파일 미리 받기
+  // 열릴 때: 기록, 이미지 파일 미리 받기(공유 버튼을 누르는 순간 바로 공유 창을 열 수 있게)
   useEffect(() => {
     if (opened.current) return;
     opened.current = true;
     track("invite_image_opened");
-    void copyLink();
     void loadFile().then((file) => {
       if (file && !canShareFile(file)) setMode("save");
     });
-  }, [copyLink, loadFile]);
+  }, [loadFile]);
 
   // 스크롤 잠금 + 포커스 이동/복원
   useEffect(() => {
@@ -182,7 +202,7 @@ export function ShareSheet({ imageUrl, imageFileName, linkToCopy, title, onClose
           </p>
         )}
 
-        <div className="relative mx-auto aspect-[9/16] h-[min(60dvh,calc((min(100vw,430px)-48px)*16/9))] shrink-0">
+        <div className="relative mx-auto aspect-[9/16] h-[min(42dvh,calc((min(100vw,430px)-48px)*16/9))] shrink-0">
           {imageState !== "ready" && (
             <div
               aria-hidden="true"
@@ -225,48 +245,54 @@ export function ShareSheet({ imageUrl, imageFileName, linkToCopy, title, onClose
           <p className="mt-3 text-center text-sm font-medium">이미지를 길게 눌러 저장한 뒤 인스타 스토리에 올려 주세요</p>
         )}
 
-        <Button className="mt-5 shrink-0" onClick={shareImage} disabled={busy}>
-          {mode === "share"
-            ? busy
-              ? "공유 창 여는 중…"
-              : "인스타 스토리에 공유하기"
-            : busy
-              ? "저장 준비 중…"
-              : "이미지 저장하기"}
-        </Button>
-
-        <div className="mt-3">
-          {copyState === "manual" ? (
-            <div className="flex flex-col gap-2.5 rounded-[16px] border-[1.5px] border-gold p-4">
-              <button
-                type="button"
-                onClick={copyLink}
-                className="h-12 w-full rounded-[14px] border-[1.5px] border-gold text-[15px] font-bold text-gold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold-light active:bg-card-2"
-              >
-                링크 복사
+        <ol className="mt-5 flex flex-col gap-4">
+          <li>
+            <StepLabel n={1}>스토리에 붙일 친구용 링크</StepLabel>
+            {copyState === "manual" ? (
+              <div className="mt-2 flex flex-col gap-2.5 rounded-[16px] border-[1.5px] border-gold p-4">
+                <button type="button" onClick={copyLink} className={stepButtonClass(false)}>
+                  다시 복사
+                </button>
+                <ManualCopyField value={linkToCopy} label="친구에게 보낼 링크" />
+              </div>
+            ) : (
+              <button type="button" onClick={copyLink} className={`mt-2 ${stepButtonClass(!linkCopied)}`}>
+                {linkCopied ? (
+                  <>
+                    <CheckCircleIcon size={18} />
+                    <span>복사했어요</span>
+                  </>
+                ) : (
+                  "링크 복사"
+                )}
               </button>
-              {/* 열자마자 실패한 경우라 포커스를 옮기지 않는다(이미지가 화면 밖으로 밀리지 않게) */}
-              <ManualCopyField value={linkToCopy} label="친구에게 보낼 링크" autoSelect={false} />
-            </div>
-          ) : (
-            <Button variant="outline" onClick={copyLink}>
-              {copyState === "copied" ? "복사했어요" : "링크 복사"}
-            </Button>
-          )}
-        </div>
+            )}
+          </li>
 
-        <ol className="mt-6 flex flex-col gap-3">
-          {STEPS[mode].map((step, i) => (
-            <li key={step} className="flex items-center gap-3 text-sm">
-              <span
-                aria-hidden="true"
-                className="flex size-6 shrink-0 items-center justify-center rounded-full bg-card text-xs font-bold text-gold"
-              >
-                {i + 1}
-              </span>
-              <span>{step}</span>
-            </li>
-          ))}
+          <li>
+            <StepLabel n={2}>
+              {mode === "share" ? "공유 창에서 Instagram → 스토리 고르기" : "이미지 저장 후 인스타 스토리에 올리기"}
+            </StepLabel>
+            <button
+              type="button"
+              onClick={shareImage}
+              disabled={busy}
+              className={`mt-2 ${stepButtonClass(linkCopied)}`}
+            >
+              {mode === "share"
+                ? busy
+                  ? "공유 창 여는 중…"
+                  : "인스타 스토리에 공유하기"
+                : busy
+                  ? "저장 준비 중…"
+                  : "이미지 저장하기"}
+            </button>
+          </li>
+
+          <li>
+            <StepLabel n={3}>스토리에서 링크 스티커에 붙여넣기</StepLabel>
+            <p className="mt-1.5 pl-[34px] text-xs text-muted">스티커 → 링크를 누르고 복사한 주소를 붙여넣어요</p>
+          </li>
         </ol>
       </div>
 

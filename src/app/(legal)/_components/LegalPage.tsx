@@ -3,6 +3,9 @@ import type { ReactNode } from "react";
 
 // 법적 페이지 공통 틀. 내용은 법률 검토 전 초안이며, 확인이 필요한 곳은 [대괄호]로 남겨 두었다.
 
+/** 개인정보처리방침·이용약관 시행일 */
+const EFFECTIVE_DATE = "2026년 11월 18일";
+
 export function contactEmail(): string {
   return process.env.NEXT_PUBLIC_CONTACT_EMAIL?.trim() || "[문의 이메일]";
 }
@@ -35,7 +38,7 @@ export function LegalPage({
         처음으로
       </Link>
       <h1 className="mt-2 font-display text-[26px] font-extrabold tracking-[-0.4px]">{title}</h1>
-      <p className="mt-2 text-[13px] text-subtle">시행일: [날짜]</p>
+      <p className="mt-2 text-[13px] text-subtle">시행일: {EFFECTIVE_DATE}</p>
       <p className="mt-5 text-[15px] leading-[1.7] text-muted">{intro}</p>
       <div className="mt-2 flex flex-col">{children}</div>
     </main>
