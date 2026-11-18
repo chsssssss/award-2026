@@ -4,6 +4,7 @@ import { useEffect, useId, useState } from "react";
 
 import { Button } from "@/components/Button";
 import { buildRevealIcs, googleCalendarUrl } from "@/lib/calendar";
+import { copyText } from "@/lib/clipboard";
 import { savedLinkKey, writeStorage } from "@/lib/storage";
 
 type Props = {
@@ -14,26 +15,6 @@ type Props = {
 };
 
 type CopyState = "idle" | "copied" | "manual";
-
-/** Clipboard API가 없을 때 쓰는 예전 방식. 클릭 직후(사용자 동작 안)에서만 동작한다. */
-function legacyCopy(text: string): boolean {
-  try {
-    const textarea = document.createElement("textarea");
-    textarea.value = text;
-    textarea.setAttribute("readonly", "");
-    textarea.style.position = "fixed";
-    textarea.style.top = "-1000px";
-    textarea.style.fontSize = "16px"; // iOS 확대 방지
-    document.body.appendChild(textarea);
-    textarea.select();
-    textarea.setSelectionRange(0, text.length);
-    const ok = document.execCommand("copy");
-    textarea.remove();
-    return ok;
-  } catch {
-    return false;
-  }
-}
 
 function selectAll(input: HTMLInputElement | null) {
   if (input) {
@@ -56,20 +37,7 @@ export function SaveLinkCard({ slug, manageUrl, revealAt, onSaved }: Props) {
   }, [copyState]);
 
   async function copyLink() {
-    if (navigator.clipboard?.writeText) {
-      try {
-        await navigator.clipboard.writeText(manageUrl);
-        setCopyState("copied");
-        return;
-      } catch {
-        // 권한 거부·인앱 브라우저 제한 등. 아래 방법으로 넘어간다.
-      }
-    }
-    if (legacyCopy(manageUrl)) {
-      setCopyState("copied");
-      return;
-    }
-    setCopyState("manual");
+    setCopyState((await copyText(manageUrl)) ? "copied" : "manual");
   }
 
   function downloadIcs() {

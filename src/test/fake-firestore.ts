@@ -25,6 +25,19 @@ export class FakeFirestore {
   collection(path: string) {
     return {
       doc: (id: string) => this.docRef(`${path}/${id}`, id),
+      /** 바로 아래 문서만(더 깊은 하위 컬렉션은 빼고). reads에는 컬렉션 경로를 남긴다. */
+      get: async () => {
+        this.reads.push(path);
+        const prefix = `${path}/`;
+        const docs = [...this.docs]
+          .filter(([key]) => key.startsWith(prefix) && !key.slice(prefix.length).includes("/"))
+          .map(([key, data]) => ({
+            id: key.slice(prefix.length),
+            exists: true,
+            data: () => ({ ...data }),
+          }));
+        return { docs, size: docs.length, empty: docs.length === 0 };
+      },
     };
   }
 

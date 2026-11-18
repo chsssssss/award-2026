@@ -1,131 +1,225 @@
 "use client";
 
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useState, useSyncExternalStore, type ReactNode } from "react";
 
-import { REVEAL_AT } from "@/lib/constants";
-import { fetchJson } from "@/lib/fetch-json";
-import { buildManageUrl, parseOwnerToken } from "@/lib/owner-link";
+import { Button } from "@/components/Button";
+import { TrophyIcon } from "@/components/TrophyIcon";
+import type { ManageBeforeReveal } from "@/lib/manage-types";
+import { buildFriendUrl, buildManageUrl, parseOwnerToken } from "@/lib/owner-link";
 import { readStorage, savedLinkKey } from "@/lib/storage";
+import { formatDday, formatKoreanDate } from "@/lib/time";
 
+import { FriendLink } from "./FriendLink";
 import { SaveLinkCard } from "./SaveLinkCard";
-
-type PublicCeremonyResponse = {
-  name: string;
-  revealAt: string;
-  trophyCount: number;
-  closed: boolean;
-};
-
-type CeremonyState =
-  | { status: "loading" }
-  | { status: "ready"; name: string; revealAt: Date }
-  | { status: "not_found" }
-  | { status: "error"; message: string };
+import { TrophyGrid } from "./TrophyGrid";
+import { useManageData, type ManageState } from "./useManageData";
 
 function subscribeHash(onChange: () => void) {
   window.addEventListener("hashchange", onChange);
   return () => window.removeEventListener("hashchange", onChange);
 }
-const subscribeNothing = () => () => {};
 
+/**
+ * 내 시상식 화면. 관리 토큰은 주소의 # 뒤에만 있고(서버로 가는 요청 주소에는 없다),
+ * 메모리에만 두고 Authorization 헤더로만 보낸다. 토큰이 든 주소는 어디에도 찍지 않는다.
+ */
 export function OwnerClient({ slug }: { slug: string }) {
-  // 서버 렌더링 때는 null(아직 모름), 브라우저에서는 실제 해시. 토큰은 메모리에만 둔다.
+  // 서버 렌더링 때는 null(아직 모름), 브라우저에서는 실제 해시
   const hash = useSyncExternalStore(
     subscribeHash,
     () => window.location.hash,
     () => null,
   );
-  const token = hash === null ? undefined : parseOwnerToken(hash);
 
+  if (hash === null) return <Shell><BoardSkeleton /></Shell>;
+  if (hash.replace(/^#/, "") === "") {
+    return (
+      <Shell>
+        <Notice title="관리 링크로 들어와 주세요" body="만들 때 저장한 링크가 필요해요" />
+      </Shell>
+    );
+  }
+  const token = parseOwnerToken(hash);
+  if (!token) return <Shell><InvalidLink /></Shell>;
+
+  // 토큰이 바뀌면 상태를 처음부터 다시
+  return <OwnerBoard key={token} slug={slug} token={token} />;
+}
+
+const subscribeNothing = () => () => {};
+
+function OwnerBoard({ slug, token }: { slug: string; token: string }) {
+  const { state, retry } = useManageData(slug, token);
   const savedBefore = useSyncExternalStore(
     subscribeNothing,
     () => readStorage(savedLinkKey(slug)) !== null,
     () => null,
   );
   const [saveCardClosed, setSaveCardClosed] = useState(false);
-  const [ceremony, setCeremony] = useState<CeremonyState>({ status: "loading" });
 
-  useEffect(() => {
-    const controller = new AbortController();
-    fetchJson<PublicCeremonyResponse>(`/api/ceremonies/${slug}`, {
-      signal: controller.signal,
-    }).then((result) => {
-      if (result.ok) {
-        setCeremony({
-          status: "ready",
-          name: result.data.name,
-          revealAt: new Date(result.data.revealAt),
-        });
-      } else if (result.error === "aborted") {
-        return;
-      } else if (result.status === 404) {
-        setCeremony({ status: "not_found" });
-      } else {
-        setCeremony({ status: "error", message: result.message });
-      }
-    });
-    return () => controller.abort();
-  }, [slug]);
-
-  const showSaveCard =
-    !!token &&
-    savedBefore === false &&
-    !saveCardClosed &&
-    ceremony.status !== "not_found";
+  // 토큰이 맞는 것을 확인한 뒤에만 관리 링크 저장 안내를 띄운다
+  const showSaveCard = state.status === "ready" && savedBefore === false && !saveCardClosed;
 
   return (
-    <main className="flex flex-1 flex-col pt-6 pb-8">
-      {token === null && (
-        <div role="status" className="mb-6 rounded-[20px] bg-card p-5">
-          <p className="text-[15px] font-bold">관리 링크로 들어와 주세요</p>
-          <p className="mt-1.5 text-sm leading-[1.6] text-muted">
-            만들 때 저장한 링크가 필요해요
-          </p>
-        </div>
-      )}
-
+    <Shell>
       {showSaveCard && (
         <div className="mb-6">
           <SaveLinkCard
             slug={slug}
             manageUrl={buildManageUrl(window.location.origin, slug, token)}
-            revealAt={ceremony.status === "ready" ? ceremony.revealAt : REVEAL_AT}
+            revealAt={new Date(state.data.revealAt)}
             onSaved={() => setSaveCardClosed(true)}
           />
         </div>
       )}
-
-      <CeremonyTitle ceremony={ceremony} />
-    </main>
+      <BoardContent slug={slug} state={state} retry={retry} />
+    </Shell>
   );
 }
 
-function CeremonyTitle({ ceremony }: { ceremony: CeremonyState }) {
-  if (ceremony.status === "loading") {
-    return (
-      <div aria-busy="true">
-        <span className="sr-only">불러오는 중</span>
-        <div aria-hidden="true" className="h-8 w-52 animate-pulse rounded-lg bg-card" />
-        <div aria-hidden="true" className="mt-2 h-5 w-16 animate-pulse rounded bg-card-2" />
-      </div>
-    );
+function BoardContent({
+  slug,
+  state,
+  retry,
+}: {
+  slug: string;
+  state: ManageState;
+  retry: () => void;
+}) {
+  switch (state.status) {
+    case "loading":
+      return <BoardSkeleton />;
+    case "unauthorized":
+      return <InvalidLink />;
+    case "error":
+      return (
+        <div role="alert" className="rounded-[20px] bg-card p-5 text-center">
+          <p className="text-sm text-danger">{state.message}</p>
+          <Button variant="outline" className="mt-4" onClick={retry}>
+            다시 시도
+          </Button>
+        </div>
+      );
+    case "ready":
+      if (state.data.revealed) return <RevealedPlaceholder name={state.data.name} />;
+      return (
+        <BeforeReveal slug={slug} data={state.data} days={state.days} newFrom={state.newFrom} />
+      );
   }
-  if (ceremony.status === "not_found") {
-    return (
-      <h1 className="font-display text-2xl font-extrabold tracking-[-0.4px]">
-        시상식을 찾을 수 없어요
-      </h1>
-    );
-  }
-  if (ceremony.status === "error") {
-    return <p className="text-sm text-danger">{ceremony.message}</p>;
-  }
+}
+
+function BeforeReveal({
+  slug,
+  data,
+  days,
+  newFrom,
+}: {
+  slug: string;
+  data: ManageBeforeReveal;
+  days: number;
+  newFrom: number | null;
+}) {
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || window.location.origin;
+
   return (
-    <div>
-      <h1 className="font-display text-2xl font-extrabold tracking-[-0.4px]">
-        {ceremony.name}의 2026 시상식
-      </h1>
-      <p className="mt-1.5 text-sm text-muted">준비 중</p>
+    <>
+      <div className="flex items-center justify-between gap-3">
+        <h1 className="min-w-0 font-display text-2xl font-extrabold tracking-[-0.4px]">
+          {data.name}의 2026 시상식
+        </h1>
+        <span className="shrink-0 rounded-full bg-gold px-2.5 py-[5px] text-xs font-bold text-on-gold">
+          개최 중
+        </span>
+      </div>
+      <p className="mt-1.5 text-sm text-muted">친구들이 보내는 트로피를 모으고 있어요</p>
+
+      <div className="mt-5 flex items-center justify-between rounded-[20px] bg-card p-5">
+        <div className="flex flex-col gap-0.5">
+          <span className="text-[13px] text-muted">공개까지</span>
+          <span className="font-display text-[40px] leading-[1.1] font-extrabold text-gold">
+            {formatDday(days)}
+          </span>
+        </div>
+        <p className="text-right text-sm leading-normal">
+          {formatKoreanDate(new Date(data.revealAt))}
+          <br />
+          <span className="text-muted">한꺼번에 공개</span>
+        </p>
+      </div>
+
+      <TrophyGrid count={data.trophyCount} newFrom={newFrom} />
+
+      <FriendLink url={buildFriendUrl(siteUrl, slug)} />
+
+      <div className="min-h-8 flex-1" />
+
+      {/* 11/26에 스토리 이미지와 연결 */}
+      <Button disabled>
+        <span>스토리용 이미지 저장하기</span>
+        <span className="ml-2 rounded-full border border-line px-2 py-0.5 text-[11px] font-medium">
+          곧 열려요
+        </span>
+      </Button>
+      <Button
+        variant="outline"
+        href={`/s/${slug}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="mt-2.5"
+      >
+        친구 화면 보기
+      </Button>
+    </>
+  );
+}
+
+/** 공개 후 결과 화면은 12/8에 만든다. 오늘은 임시 안내만. */
+function RevealedPlaceholder({ name }: { name: string }) {
+  return (
+    <div className="flex flex-1 flex-col items-center justify-center gap-5 py-10 text-center">
+      <TrophyIcon size={96} />
+      <div>
+        <h1 className="font-display text-[28px] font-extrabold tracking-[-0.4px]">
+          결과가 공개됐어요!
+        </h1>
+        <p className="mt-2 text-sm text-muted">{name}의 결과 화면을 준비하고 있어요</p>
+      </div>
+    </div>
+  );
+}
+
+function Shell({ children }: { children: ReactNode }) {
+  return <main className="flex flex-1 flex-col pt-6 pb-8">{children}</main>;
+}
+
+function Notice({ title, body }: { title: string; body: string }) {
+  return (
+    <div role="status" className="rounded-[20px] bg-card p-5">
+      <p className="text-[15px] font-bold">{title}</p>
+      <p className="mt-1.5 text-sm leading-[1.6] text-muted">{body}</p>
+    </div>
+  );
+}
+
+function InvalidLink() {
+  return (
+    <Notice
+      title="링크가 올바르지 않아요"
+      body="만들 때 저장한 관리 링크를 그대로 열어 주세요"
+    />
+  );
+}
+
+function BoardSkeleton() {
+  return (
+    <div aria-busy="true">
+      <span className="sr-only">불러오는 중</span>
+      <div aria-hidden="true">
+        <div className="h-8 w-52 animate-pulse rounded-lg bg-card" />
+        <div className="mt-2 h-5 w-60 animate-pulse rounded bg-card-2" />
+        <div className="mt-5 h-[104px] animate-pulse rounded-[20px] bg-card" />
+        <div className="mt-4 h-[236px] animate-pulse rounded-[20px] bg-card" />
+      </div>
     </div>
   );
 }

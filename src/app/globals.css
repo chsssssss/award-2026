@@ -24,6 +24,22 @@
   --font-display: var(--font-nanum-myeongjo), serif;
 }
 
+/* 내 시상식 화면: 새 트로피 칸이 살짝 나타나는 효과. 쓰는 곳에서 motion-reduce:animate-none을 같이 붙여요. */
+@theme {
+  --animate-trophy-in: trophy-in 480ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+
+  @keyframes trophy-in {
+    from {
+      opacity: 0;
+      transform: scale(0.7);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+}
+
 :root {
   color-scheme: dark;
 }

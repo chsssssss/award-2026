@@ -16,3 +16,13 @@ export function parseOwnerToken(hash: string): string | null {
 export function buildManageUrl(origin: string, slug: string, token: string) {
   return `${origin.replace(/\/+$/, "")}/m/${slug}#${token}`;
 }
+
+/** 친구에게 보낼 링크(/s/[slug]). 토큰은 들어가지 않는다. */
+export function buildFriendUrl(siteUrl: string, slug: string) {
+  return `${siteUrl.replace(/\/+$/, "")}/s/${slug}`;
+}
+
+/** 화면에 보여줄 때는 https://를 뺀다(복사는 전체 주소로). */
+export function displayUrl(url: string) {
+  return url.replace(/^https?:\/\//, "");
+}

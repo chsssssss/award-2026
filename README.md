@@ -131,6 +131,33 @@ Invoke-RestMethod -Method Post -Uri $uri -WebSession $friend `
   -Body ([System.Text.Encoding]::UTF8.GetBytes($body))
 ```
 
+### 내 시상식 조회 (관리 API)
+
+관리 링크 `#` 뒤의 토큰을 `Authorization: Bearer` 헤더로 보내요(주소나 쿼리로는 받지 않아요).
+공개 전에는 개수만 오고, 트로피 내용은 서버에서 아예 읽지 않아요.
+
+```bash
+TOKEN=<관리 링크의 # 뒤>
+curl -i http://localhost:3000/api/manage/$SLUG -H "Authorization: Bearer $TOKEN"
+# 공개 전 → {"name":"지민","revealAt":"2026-12-31T12:00:00.000Z","trophyCount":3,"revealed":false}
+```
+
+```powershell
+Invoke-RestMethod -Uri "http://localhost:3000/api/manage/$slug" -Headers @{ Authorization = "Bearer $token" }
+```
+
+공개 후에는 `revealed: true`와 함께 `awards`가 와요. 상별로 묶고(직접 지은 상은 `key`가 `custom:이름`), 많이 받은 상부터, 각 상 안의 트로피는 오래된 순이에요. 익명 트로피의 `senderName`은 `null`이에요.
+
+```json
+{
+  "name": "지민", "revealAt": "2026-12-31T12:00:00.000Z", "trophyCount": 3, "revealed": true,
+  "awards": [
+    { "key": "laugh", "name": "웃음 지분 1위상", "count": 2,
+      "trophies": [{ "id": "…", "reason": "매일 웃게 해줘서", "senderName": "하은", "anonymous": false, "hidden": false, "createdAt": "…" }] }
+  ]
+}
+```
+
 ### 응답 코드
 
 시상식 만들기·조회:
@@ -155,3 +182,11 @@ Invoke-RestMethod -Method Post -Uri $uri -WebSession $friend `
 | 이미 이 시상식에 상을 줌(같은 voterId) | 409 | `{ error: "already_given", message }` |
 | 시상식의 공개 시각이 지남 | 410 | `{ error: "closed", message }` |
 | 같은 IP에서 10분에 60개 넘게 만들기 | 429 | `{ error: "rate_limited", message }` + `Retry-After`(초) |
+
+내 시상식 조회(`GET /api/manage/[slug]`, 항상 `Cache-Control: no-store`):
+
+| 상황 | 상태 | body |
+|---|---|---|
+| 공개 전 | 200 | `{ name, revealAt, trophyCount, revealed: false }` |
+| 공개 후(서버 시각 ≥ revealAt) | 200 | `{ name, revealAt, trophyCount, revealed: true, awards }` |
+| 토큰이 틀림·없음, 없는 시상식, slug 형식 오류 | 401 | `{ error: "unauthorized", message: "링크가 올바르지 않아요" }` |

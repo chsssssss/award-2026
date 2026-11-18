@@ -6,7 +6,8 @@ import {
   postJson,
   UNKNOWN_ERROR_MESSAGE,
 } from "./fetch-json";
-import { buildManageUrl, parseOwnerToken } from "./owner-link";
+import { copyText } from "./clipboard";
+import { buildFriendUrl, buildManageUrl, displayUrl, parseOwnerToken } from "./owner-link";
 import { readStorage, savedLinkKey, writeStorage } from "./storage";
 
 afterEach(() => {
@@ -111,5 +112,61 @@ describe("owner-link", () => {
     expect(buildManageUrl("https://a.example/", "ab3defgh", TOKEN)).toBe(
       `https://a.example/m/ab3defgh#${TOKEN}`,
     );
+  });
+
+  it("친구용 링크는 /s/[slug]이고 토큰이 없어요", () => {
+    const url = buildFriendUrl("https://a.example//", "ab3defgh");
+    expect(url).toBe("https://a.example/s/ab3defgh");
+    expect(url).not.toContain("#");
+    expect(displayUrl(url)).toBe("a.example/s/ab3defgh");
+    expect(displayUrl("http://localhost:3000/s/ab3defgh")).toBe("localhost:3000/s/ab3defgh");
+  });
+});
+
+describe("copyText", () => {
+  function stubDocument(execResult: boolean | "throw") {
+    const textarea = {
+      value: "",
+      style: {} as Record<string, string>,
+      setAttribute: vi.fn(),
+      select: vi.fn(),
+      setSelectionRange: vi.fn(),
+      remove: vi.fn(),
+    };
+    const execCommand = vi.fn(() => {
+      if (execResult === "throw") throw new Error("blocked");
+      return execResult;
+    });
+    vi.stubGlobal("document", {
+      createElement: () => textarea,
+      body: { appendChild: vi.fn() },
+      execCommand,
+    });
+    return { textarea, execCommand };
+  }
+
+  it("Clipboard API가 되면 그걸로 복사해요", async () => {
+    const writeText = vi.fn(async () => {});
+    vi.stubGlobal("navigator", { clipboard: { writeText } });
+    const { execCommand } = stubDocument(true);
+    expect(await copyText("https://a.example/s/ab3defgh")).toBe(true);
+    expect(writeText).toHaveBeenCalledWith("https://a.example/s/ab3defgh");
+    expect(execCommand).not.toHaveBeenCalled();
+  });
+
+  it("Clipboard API가 막히면 execCommand로", async () => {
+    vi.stubGlobal("navigator", { clipboard: { writeText: vi.fn(async () => Promise.reject(new Error("denied"))) } });
+    const { textarea, execCommand } = stubDocument(true);
+    expect(await copyText("x")).toBe(true);
+    expect(execCommand).toHaveBeenCalledWith("copy");
+    expect(textarea.remove).toHaveBeenCalled();
+  });
+
+  it("둘 다 안 되면 false(직접 복사 안내)", async () => {
+    vi.stubGlobal("navigator", {});
+    stubDocument(false);
+    expect(await copyText("x")).toBe(false);
+    stubDocument("throw");
+    expect(await copyText("x")).toBe(false);
   });
 });
