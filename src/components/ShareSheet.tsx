@@ -7,7 +7,7 @@ import { Button } from "@/components/Button";
 import { CloseIcon } from "@/components/icons";
 import { ManualCopyField } from "@/components/ManualCopyField";
 import { isInAppBrowser } from "@/lib/inapp";
-import { fetchImageFile, shareImageFile } from "@/lib/share-image";
+import { canShareFile, fetchImageFile, shareImageFile } from "@/lib/share-image";
 import { track } from "@/lib/track";
 import { useCopy } from "@/lib/use-copy";
 
@@ -24,11 +24,16 @@ type Props = {
 const FOCUSABLE =
   'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
-const STEPS = ["이미지 저장", "인스타 스토리에 올리기", "링크 스티커에 복사한 주소 붙여넣기"] as const;
+/** 공유 창으로 바로 올릴 수 있을 때 / 이미지를 저장해서 올려야 할 때의 안내 */
+const STEPS = {
+  share: ["‘인스타 스토리에 공유하기’ 누르기", "공유 창에서 Instagram → 스토리 고르기", "링크 스티커에 복사한 주소 붙여넣기"],
+  save: ["이미지를 길게 눌러 저장", "인스타 스토리에 올리기", "링크 스티커에 복사한 주소 붙여넣기"],
+} as const;
 
 /**
- * 이미지 저장 + 링크 복사를 돕는 전체 화면 시트. 부모가 열 때만 렌더한다(마운트 = 열림).
- * 인앱 브라우저는 다운로드·클립보드가 불안정하므로 공유 시트 → 길게 눌러 저장 순으로 안내한다.
+ * 인스타 스토리 공유 + 링크 복사를 돕는 전체 화면 시트. 부모가 열 때만 렌더한다(마운트 = 열림).
+ * 휴대폰 공유 창(Web Share)으로 이미지를 넘겨 Instagram → 스토리로 바로 올리게 하고,
+ * 공유를 못 하는 브라우저(일부 인앱 브라우저·컴퓨터)는 길게 눌러 저장하도록 안내한다.
  */
 export function ShareSheet({ imageUrl, imageFileName, linkToCopy, title, onClose }: Props) {
   const titleId = useId();
@@ -45,8 +50,10 @@ export function ShareSheet({ imageUrl, imageFileName, linkToCopy, title, onClose
   const [inApp] = useState(() => isInAppBrowser(navigator.userAgent));
   const [imageState, setImageState] = useState<"loading" | "ready" | "error">("loading");
   const [imageKey, setImageKey] = useState(0);
-  const [saving, setSaving] = useState(false);
+  const [busy, setBusy] = useState(false);
   const [shareGuide, setShareGuide] = useState(false);
+  // 이미지를 받아 본 뒤 정한다: 공유 창으로 보낼 수 있으면 share, 아니면 save
+  const [mode, setMode] = useState<"share" | "save">("share");
   // 인앱 브라우저면 처음부터, 아니면 공유가 안 될 때 "길게 눌러 저장" 안내
   const [longPressHint, setLongPressHint] = useState(inApp);
 
@@ -68,7 +75,9 @@ export function ShareSheet({ imageUrl, imageFileName, linkToCopy, title, onClose
     opened.current = true;
     track("invite_image_opened");
     void copyLink();
-    void loadFile();
+    void loadFile().then((file) => {
+      if (file && !canShareFile(file)) setMode("save");
+    });
   }, [copyLink, loadFile]);
 
   // 스크롤 잠금 + 포커스 이동/복원
@@ -113,17 +122,17 @@ export function ShareSheet({ imageUrl, imageFileName, linkToCopy, title, onClose
     return () => document.removeEventListener("keydown", onKeyDown);
   }, []);
 
-  async function saveImage() {
-    if (saving) return;
-    setSaving(true);
+  async function shareImage() {
+    if (busy) return;
+    setBusy(true);
     const file = await loadFile();
     let result: Awaited<ReturnType<typeof shareImageFile>> = "failed";
     if (file) {
-      setShareGuide(true); // 공유 창이 뜨면 "이미지 저장"을 고르라는 안내
+      setShareGuide(true); // 공유 창이 뜨면 Instagram → 스토리를 고르라는 안내
       result = await shareImageFile(file, title);
       setShareGuide(false);
     }
-    setSaving(false);
+    setBusy(false);
 
     if (result === "shared") {
       track("invite_image_shared", { method: "web_share" });
@@ -131,6 +140,7 @@ export function ShareSheet({ imageUrl, imageFileName, linkToCopy, title, onClose
     }
     if (result === "cancelled") return; // 사용자가 닫음: 아무것도 표시하지 않는다
 
+    setMode("save");
     setLongPressHint(true);
     track("invite_image_shared", { method: "long_press_hint" });
     // 공유를 못 하는 일반 브라우저(컴퓨터 등)는 파일로 내려받기도 시도한다
@@ -168,7 +178,7 @@ export function ShareSheet({ imageUrl, imageFileName, linkToCopy, title, onClose
 
         {shareGuide && (
           <p role="status" className="mb-3 rounded-[14px] bg-card px-4 py-3 text-center text-sm">
-            공유 창이 뜨면 <b className="text-gold">이미지 저장</b>을 골라 주세요
+            공유 창에서 <b className="text-gold">Instagram</b>을 누르고 <b className="text-gold">스토리</b>를 골라 주세요
           </p>
         )}
 
@@ -212,11 +222,17 @@ export function ShareSheet({ imageUrl, imageFileName, linkToCopy, title, onClose
         </div>
 
         {longPressHint && (
-          <p className="mt-3 text-center text-sm font-medium">이미지를 길게 눌러 저장하세요</p>
+          <p className="mt-3 text-center text-sm font-medium">이미지를 길게 눌러 저장한 뒤 인스타 스토리에 올려 주세요</p>
         )}
 
-        <Button className="mt-5 shrink-0" onClick={saveImage} disabled={saving}>
-          {saving ? "저장 준비 중…" : "이미지 저장하기"}
+        <Button className="mt-5 shrink-0" onClick={shareImage} disabled={busy}>
+          {mode === "share"
+            ? busy
+              ? "공유 창 여는 중…"
+              : "인스타 스토리에 공유하기"
+            : busy
+              ? "저장 준비 중…"
+              : "이미지 저장하기"}
         </Button>
 
         <div className="mt-3">
@@ -240,7 +256,7 @@ export function ShareSheet({ imageUrl, imageFileName, linkToCopy, title, onClose
         </div>
 
         <ol className="mt-6 flex flex-col gap-3">
-          {STEPS.map((step, i) => (
+          {STEPS[mode].map((step, i) => (
             <li key={step} className="flex items-center gap-3 text-sm">
               <span
                 aria-hidden="true"

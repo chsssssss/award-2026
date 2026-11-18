@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { getInAppBrowser, isAndroid, isInAppBrowser, isIOS } from "./inapp";
-import { fetchImageFile, shareImageFile } from "./share-image";
+import { canShareFile, fetchImageFile, shareImageFile } from "./share-image";
 import { track } from "./track";
 
 const UA = {
@@ -106,6 +106,23 @@ describe("share-image", () => {
       throw new DOMException("not allowed", "NotAllowedError");
     });
     expect(await shareImageFile(file, "t", { share, canShare: () => true })).toBe("failed");
+  });
+
+  it("canShareFile: 공유 창으로 파일을 보낼 수 있는지", () => {
+    const share = vi.fn(async () => {});
+    expect(canShareFile(file, { share, canShare: () => true })).toBe(true);
+    expect(canShareFile(file, { share, canShare: () => false })).toBe(false);
+    expect(canShareFile(file, { canShare: () => true })).toBe(false); // share 없음
+    expect(canShareFile(file, {})).toBe(false);
+    expect(canShareFile(file, undefined)).toBe(false);
+    expect(
+      canShareFile(file, {
+        share,
+        canShare: () => {
+          throw new TypeError("bad");
+        },
+      }),
+    ).toBe(false);
   });
 
   it("Web Share가 없거나 파일을 못 나누면 unsupported", async () => {

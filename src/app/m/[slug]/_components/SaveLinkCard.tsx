@@ -6,6 +6,7 @@ import { Button } from "@/components/Button";
 import { ManualCopyField } from "@/components/ManualCopyField";
 import { buildRevealIcs, googleCalendarUrl } from "@/lib/calendar";
 import { savedLinkKey, writeStorage } from "@/lib/storage";
+import { formatKoreanDate } from "@/lib/time";
 import { track } from "@/lib/track";
 import { useCopy } from "@/lib/use-copy";
 
@@ -13,10 +14,12 @@ type Props = {
   slug: string;
   manageUrl: string;
   revealAt: Date;
+  /** 공개 후면 "다시 볼 수 있어요" 문구, 캘린더 추가는 숨김 */
+  revealed?: boolean;
   onSaved: () => void;
 };
 
-export function SaveLinkCard({ slug, manageUrl, revealAt, onSaved }: Props) {
+export function SaveLinkCard({ slug, manageUrl, revealAt, revealed = false, onSaved }: Props) {
   const titleId = useId();
   const calendarId = useId();
   const { state: copyState, copy } = useCopy();
@@ -62,8 +65,9 @@ export function SaveLinkCard({ slug, manageUrl, revealAt, onSaved }: Props) {
         이 링크를 꼭 저장하세요
       </h2>
       <p className="mt-2 text-sm leading-[1.6] text-muted">
-        이 링크가 있어야 12월 31일에 결과를 볼 수 있어요. 잊어버리면 다시 찾을 수
-        없어요.
+        {revealed
+          ? "이 링크로 언제든 결과를 다시 볼 수 있어요. 잊어버리면 다시 찾을 수 없어요."
+          : `이 링크가 있어야 ${formatKoreanDate(revealAt)}에 결과를 볼 수 있어요. 잊어버리면 다시 찾을 수 없어요.`}
       </p>
 
       <div className="mt-4 flex flex-col gap-2.5">
@@ -76,36 +80,41 @@ export function SaveLinkCard({ slug, manageUrl, revealAt, onSaved }: Props) {
 
         {copyState === "manual" && <ManualCopyField value={manageUrl} label="관리 링크" />}
 
-        <Button
-          variant="outline"
-          aria-expanded={calendarOpen}
-          aria-controls={calendarId}
-          onClick={() => setCalendarOpen((open) => !open)}
-        >
-          캘린더에 공개일 추가
-        </Button>
-        <div
-          id={calendarId}
-          hidden={!calendarOpen}
-          className="grid grid-cols-2 gap-2.5"
-        >
-          <Button
-            variant="outline"
-            href={googleCalendarUrl(revealAt, manageUrl)}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={() => void track("manage_link_saved", { method: "google_calendar" })}
-          >
-            Google 캘린더
-          </Button>
-          <Button variant="outline" onClick={downloadIcs}>
-            아이폰 캘린더(.ics)
-          </Button>
-        </div>
-        {icsFailed && (
-          <p className="text-[13px] text-danger">
-            파일을 만들지 못했어요. Google 캘린더를 써 주세요
-          </p>
+        {/* 공개 후에는 캘린더에 넣을 일정이 없다 */}
+        {!revealed && (
+          <>
+            <Button
+              variant="outline"
+              aria-expanded={calendarOpen}
+              aria-controls={calendarId}
+              onClick={() => setCalendarOpen((open) => !open)}
+            >
+              캘린더에 공개일 추가
+            </Button>
+            <div
+              id={calendarId}
+              hidden={!calendarOpen}
+              className="grid grid-cols-2 gap-2.5"
+            >
+              <Button
+                variant="outline"
+                href={googleCalendarUrl(revealAt, manageUrl)}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => void track("manage_link_saved", { method: "google_calendar" })}
+              >
+                Google 캘린더
+              </Button>
+              <Button variant="outline" onClick={downloadIcs}>
+                아이폰 캘린더(.ics)
+              </Button>
+            </div>
+            {icsFailed && (
+              <p className="text-[13px] text-danger">
+                파일을 만들지 못했어요. Google 캘린더를 써 주세요
+              </p>
+            )}
+          </>
         )}
       </div>
 

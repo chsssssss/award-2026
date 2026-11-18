@@ -1,5 +1,6 @@
-// 이미지 저장(Web Share) 도우미. 인앱 브라우저에서는 다운로드가 막히는 일이 많아서
-// 공유 시트("이미지 저장")를 먼저 쓰고, 안 되면 화면에서 "길게 눌러 저장" 안내로 넘어간다.
+// 이미지 공유(Web Share) 도우미. 휴대폰 공유 창으로 이미지를 넘겨 인스타그램 → 스토리로 바로 올리게 한다.
+// 웹에서는 인스타 스토리 편집 화면을 이미지와 함께 직접 여는 공식 방법이 없어서(앱 전용) 공유 창을 쓴다.
+// 공유를 못 하면 화면에서 "길게 눌러 저장" 안내로 넘어간다.
 
 /** 이미지 주소를 받아 File로 만든다. */
 export async function fetchImageFile(
@@ -23,19 +24,25 @@ export type ShareResult = "shared" | "cancelled" | "unsupported" | "failed";
 
 type ShareNavigator = Pick<Navigator, "share" | "canShare">;
 
+/** 이 브라우저가 이 파일을 공유 창(인스타그램 등)으로 보낼 수 있는지. */
+export function canShareFile(
+  file: File,
+  nav: Partial<ShareNavigator> | undefined = typeof navigator === "undefined" ? undefined : navigator,
+): boolean {
+  if (!nav?.share || !nav.canShare) return false;
+  try {
+    return nav.canShare({ files: [file] });
+  } catch {
+    return false;
+  }
+}
+
 export async function shareImageFile(
   file: File,
   title: string,
   nav: Partial<ShareNavigator> | undefined = typeof navigator === "undefined" ? undefined : navigator,
 ): Promise<ShareResult> {
-  if (!nav?.share || !nav.canShare) return "unsupported";
-  let can = false;
-  try {
-    can = nav.canShare({ files: [file] });
-  } catch {
-    can = false;
-  }
-  if (!can) return "unsupported";
+  if (!nav?.share || !canShareFile(file, nav)) return "unsupported";
 
   try {
     await nav.share({ files: [file], title });

@@ -69,6 +69,7 @@ function OwnerBoard({ slug, token }: { slug: string; token: string }) {
             slug={slug}
             manageUrl={buildManageUrl(window.location.origin, slug, token)}
             revealAt={new Date(state.data.revealAt)}
+            revealed={state.data.revealed}
             onSaved={() => setSaveCardClosed(true)}
           />
         </div>
@@ -157,7 +158,7 @@ function BeforeReveal({
 
       <div className="min-h-8 flex-1" />
 
-      <Button onClick={() => setSheetOpen(true)}>스토리용 이미지 저장하기</Button>
+      <Button onClick={() => setSheetOpen(true)}>인스타 스토리로 초대하기</Button>
       <Button
         variant="outline"
         href={`/s/${slug}`}
