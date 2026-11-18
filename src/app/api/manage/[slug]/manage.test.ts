@@ -206,6 +206,17 @@ describe("GET /api/manage/[slug] 공개 후", () => {
     expect(body.awards[0].trophies.map((t) => t.id)).toEqual(["c1", "c2"]);
   });
 
+  it("예전 상(웃음 지분 등)과 새 상(인스타 테마)이 섞여도 이름으로 보여 줘요", async () => {
+    await addTrophy("n1", { awardId: "selfie", createdAt: at("2026-12-04T00:00:00Z") });
+    await addTrophy("x1", { awardId: "unknown-id", createdAt: at("2026-12-05T00:00:00Z") }); // 모르는 id는 빼요
+    const body = await revealed();
+    expect(body.awards.map((a) => [a.key, a.name, a.count])).toEqual([
+      ["laugh", "웃음 지분 1위상", 2],
+      ["mood", "분위기 메이커상", 1],
+      ["selfie", "셀카 각도 장인상", 1],
+    ]);
+  });
+
   it("익명이면 senderName은 null(문서에 이름이 남아 있어도)", async () => {
     await addTrophy("a1", {
       awardId: "flex",

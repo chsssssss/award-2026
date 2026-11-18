@@ -62,11 +62,17 @@ describe("createTrophySchema", () => {
   it("프리셋 상은 그대로 통과하고 customName은 버려요", () => {
     const result = createTrophySchema.parse({
       ...base,
-      awardId: "laugh",
+      awardId: "story",
       customName: "무시될 이름",
     });
-    expect(result.awardId).toBe("laugh");
+    expect(result.awardId).toBe("story");
     expect(result.customName).toBeUndefined();
+  });
+
+  it("예전 프리셋 상(laugh 등)으로는 새로 줄 수 없어요", () => {
+    for (const awardId of ["laugh", "mood", "ghost", "next"]) {
+      expect(createTrophySchema.safeParse({ awardId, reason: "", anonymous: true }).success).toBe(false);
+    }
   });
 
   it("모르는 awardId는 막아요", () => {
@@ -123,7 +129,7 @@ describe("createTrophySchema", () => {
 
   it("익명이면 senderName을 무시하고 undefined로 돌려줘요", () => {
     const result = createTrophySchema.parse({
-      awardId: "mood",
+      awardId: "selfie",
       reason: "",
       anonymous: true,
       senderName: "보낸 사람",
@@ -133,14 +139,14 @@ describe("createTrophySchema", () => {
 
   it("익명이 아니면 senderName이 필요해요", () => {
     const missing = createTrophySchema.safeParse({
-      awardId: "mood",
+      awardId: "selfie",
       reason: "",
       anonymous: false,
     });
     expect(errorsOf(missing)).toEqual({ senderName: "닉네임을 입력해주세요" });
 
     const ok = createTrophySchema.parse({
-      awardId: "mood",
+      awardId: "selfie",
       reason: "",
       anonymous: false,
       senderName: " 하은 ",
@@ -149,7 +155,7 @@ describe("createTrophySchema", () => {
   });
 
   it("닉네임 10자는 통과, 11자는 막아요", () => {
-    const input = { awardId: "mood", reason: "", anonymous: false } as const;
+    const input = { awardId: "selfie", reason: "", anonymous: false } as const;
     expect(
       createTrophySchema.safeParse({ ...input, senderName: "가나다라마바사아자차" })
         .success,
@@ -176,16 +182,16 @@ describe("createTrophySchema", () => {
   });
 
   it("시상 사유는 비어도 되고 40자까지 돼요", () => {
-    expect(createTrophySchema.parse({ awardId: "food", anonymous: true }).reason).toBe(
+    expect(createTrophySchema.parse({ awardId: "travel", anonymous: true }).reason).toBe(
       "",
     );
     const forty = "가".repeat(40);
     expect(
-      createTrophySchema.safeParse({ awardId: "food", anonymous: true, reason: forty })
+      createTrophySchema.safeParse({ awardId: "travel", anonymous: true, reason: forty })
         .success,
     ).toBe(true);
     const result = createTrophySchema.safeParse({
-      awardId: "food",
+      awardId: "travel",
       anonymous: true,
       reason: forty + "가",
     });

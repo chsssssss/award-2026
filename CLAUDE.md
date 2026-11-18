@@ -35,19 +35,22 @@
 - 제목 Nanum Myeongjo 800, 본문 Noto Sans KR 400·500·700
 - 모서리: 입력·작은 버튼 14px, 큰 버튼 16px, 카드 20~24px. 큰 버튼 높이 56px. 터치 영역 44px 이상. 입력창 글자 16px 이상.
 
-## 상 프리셋 (id / 이름 / 설명)
-laugh / 웃음 지분 1위상 / 제일 많이 웃겨줌
-mood / 분위기 메이커상 / 모임 텐션 담당
-counsel / 고민 상담소장상 / 새벽 전화도 OK
-food / 맛집 레이더상 / 따라가면 성공
-godlife / 갓생 실천상 / 미라클 모닝 장인
-twist / 반전 매력상 / 알수록 새로움
-reply / 답장 광속상 / 1분 안에 답장
-ghost / 갑분잠수상 / 연락 두절의 아이콘
-late / 프로 지각러상 / 5분만 늦을게
-flex / 통 큰 플렉스상 / 계산은 내가
-growth / 올해의 성장상 / 작년보다 멋짐
-next / 내년 기대주상 / 내년이 더 기대됨
+## 상 프리셋 (id / 이름 / 설명) — 인스타 스토리·게시물 테마
+story / 스토리 장인상 / 하루 스토리 열 개
+closefriend / 친한친구 단골상 / 초록 링 단골
+storyreply / 스토리 답장 광속상 / 올리자마자 답장
+birthday / 생일 스토리 1등상 / 축하는 제일 먼저
+feedtone / 피드 깔맞춤상 / 톤 맞추는 집념
+foodshot / 먹기 전 찰칵상 / 카메라가 먼저 먹음
+selfie / 셀카 각도 장인상 / 인생 각도를 앎
+travel / 여행 화보상 / 가는 곳마다 화보
+caption / 감성 글귀상 / 피드 글이 시집
+likefairy / 좋아요 요정상 / 하트는 제일 먼저
+reels / 릴스 배달부상 / 웃긴 릴스 배달 중
+lurker / 눈팅 고수상 / 보고는 다 봄
+
+예전 프리셋(laugh, mood, counsel, food, godlife, twist, reply, ghost, late, flex, growth, next)은 새로 줄 수 없지만,
+이미 받은 트로피의 이름을 보여 주려고 src/lib/awards.ts의 LEGACY_AWARDS에 남겨 둔다. 지우지 않는다.
 
 ## 작업 방식
 - 작업마다 npm run build, npm run lint, npm test 통과 후 커밋.

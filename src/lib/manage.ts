@@ -2,7 +2,7 @@ import "server-only";
 
 import { Timestamp, type DocumentData } from "firebase-admin/firestore";
 
-import { getAward, isAwardId } from "./awards";
+import { awardName } from "./awards";
 import { ceremonyRef } from "./ceremonies";
 import type { ManageAward, ManageResponse, ManageTrophy } from "./manage-types";
 import { isRevealed } from "./time";
@@ -43,9 +43,10 @@ function toRow(id: string, data: DocumentData): Row | null {
     if (typeof data.customName !== "string" || !data.customName) return null;
     key = `custom:${data.customName}`;
     name = data.customName;
-  } else if (typeof data.awardId === "string" && isAwardId(data.awardId)) {
+  } else if (typeof data.awardId === "string" && awardName(data.awardId)) {
+    // 예전 프리셋으로 받은 트로피도 그 이름으로 보여 준다
     key = data.awardId;
-    name = getAward(data.awardId)?.name ?? data.awardId;
+    name = awardName(data.awardId) ?? data.awardId;
   } else {
     return null;
   }

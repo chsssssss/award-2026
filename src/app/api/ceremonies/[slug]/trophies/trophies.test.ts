@@ -27,7 +27,7 @@ const IP = "203.0.113.7";
 const BEFORE_REVEAL = new Date("2026-12-01T00:00:00Z");
 
 type Body = Record<string, unknown>;
-const laugh: Body = { awardId: "laugh", reason: "매일 웃게 해줘서", anonymous: false, senderName: "하은" };
+const preset: Body = { awardId: "story", reason: "매일 웃게 해줘서", anonymous: false, senderName: "하은" };
 
 function give(
   body: Body | string,
@@ -81,7 +81,7 @@ afterEach(() => {
 
 describe("POST /api/ceremonies/[slug]/trophies", () => {
   it("정상 생성: 201 {ok:true}, trophyCount가 1 늘어요", async () => {
-    const res = await give(laugh);
+    const res = await give(preset);
     expect(res.status).toBe(201);
     expect(res.headers.get("Cache-Control")).toBe("no-store");
     // 다른 트로피 정보나 개수는 응답에 없다
@@ -90,7 +90,7 @@ describe("POST /api/ceremonies/[slug]/trophies", () => {
   });
 
   it("문서 id는 SHA-256(voterId) 앞 20자, 정해진 필드만 저장해요", async () => {
-    await give(laugh);
+    await give(preset);
     const id = trophyDocId(VOTER);
     expect(id).toMatch(/^[0-9a-f]{20}$/);
     const doc = fake.docs.get(trophyPath(VOTER))!;
@@ -99,7 +99,7 @@ describe("POST /api/ceremonies/[slug]/trophies", () => {
       ["anonymous", "awardId", "createdAt", "customName", "hidden", "ipHash", "reason", "senderName", "voterId"].sort(),
     );
     expect(doc).toMatchObject({
-      awardId: "laugh",
+      awardId: "story",
       customName: null,
       reason: "매일 웃게 해줘서",
       senderName: "하은",
@@ -113,30 +113,30 @@ describe("POST /api/ceremonies/[slug]/trophies", () => {
   });
 
   it("같은 voterId로 다시 보내면 409, 개수는 그대로", async () => {
-    expect((await give(laugh)).status).toBe(201);
-    const res = await give({ ...laugh, awardId: "mood" });
+    expect((await give(preset)).status).toBe(201);
+    const res = await give({ ...preset, awardId: "selfie" });
     expect(res.status).toBe(409);
     expect(await res.json()).toEqual({
       error: "already_given",
       message: "이미 이 시상식에 상을 줬어요",
     });
     expect(fake.docs.get(`ceremonies/${SLUG}`)?.trophyCount).toBe(8);
-    expect(fake.docs.get(trophyPath(VOTER))?.awardId).toBe("laugh");
+    expect(fake.docs.get(trophyPath(VOTER))?.awardId).toBe("story");
   });
 
   it("다른 친구(voterId)는 따로 줄 수 있어요", async () => {
-    await give(laugh);
-    expect((await give(laugh, { voter: "OtherVoter_0123456789" })).status).toBe(201);
+    await give(preset);
+    expect((await give(preset, { voter: "OtherVoter_0123456789" })).status).toBe(201);
     expect(fake.docs.get(`ceremonies/${SLUG}`)?.trophyCount).toBe(9);
   });
 
   it("공개 1초 전은 받고, 공개 시각부터는 410 closed", async () => {
     vi.setSystemTime(new Date(REVEAL_AT.getTime() - 1000));
-    expect((await give(laugh)).status).toBe(201);
+    expect((await give(preset)).status).toBe(201);
 
     for (const at of [REVEAL_AT, new Date(REVEAL_AT.getTime() + 1000)]) {
       vi.setSystemTime(at);
-      const res = await give(laugh, { voter: "LateVoter_01234567890" });
+      const res = await give(preset, { voter: "LateVoter_01234567890" });
       expect(res.status).toBe(410);
       expect(await res.json()).toEqual({ error: "closed", message: "시상식이 끝났어요" });
     }
@@ -146,12 +146,12 @@ describe("POST /api/ceremonies/[slug]/trophies", () => {
   it("시상식마다 저장된 revealAt으로 판단해요", async () => {
     await seed({ revealAt: Timestamp.fromDate(new Date("2026-12-10T00:00:00Z")) }, "early234");
     vi.setSystemTime(new Date("2026-12-10T00:00:00Z"));
-    expect((await give(laugh, { slug: "early234" })).status).toBe(410);
-    expect((await give(laugh)).status).toBe(201); // 기본 REVEAL_AT 시상식은 아직 열려 있음
+    expect((await give(preset, { slug: "early234" })).status).toBe(410);
+    expect((await give(preset)).status).toBe(201); // 기본 REVEAL_AT 시상식은 아직 열려 있음
   });
 
   it("익명이면 senderName을 null로 저장해요", async () => {
-    await give({ awardId: "food", reason: "", anonymous: true, senderName: "숨길 이름" });
+    await give({ awardId: "travel", reason: "", anonymous: true, senderName: "숨길 이름" });
     const doc = fake.docs.get(trophyPath(VOTER))!;
     expect(doc.anonymous).toBe(true);
     expect(doc.senderName).toBeNull();
@@ -167,7 +167,7 @@ describe("POST /api/ceremonies/[slug]/trophies", () => {
   });
 
   it("프리셋에 없는 awardId는 400 invalid(field: awardId)", async () => {
-    const res = await give({ ...laugh, awardId: "best_friend" });
+    const res = await give({ ...preset, awardId: "best_friend" });
     expect(res.status).toBe(400);
     expect(await res.json()).toEqual({
       error: "invalid",
@@ -184,7 +184,7 @@ describe("POST /api/ceremonies/[slug]/trophies", () => {
       field: "customName",
       message: "상 이름을 입력해주세요",
     });
-    const noSender = await give({ awardId: "laugh", reason: "", anonymous: false });
+    const noSender = await give({ awardId: "story", reason: "", anonymous: false });
     expect((await noSender.json()).field).toBe("senderName");
   });
 
@@ -195,12 +195,12 @@ describe("POST /api/ceremonies/[slug]/trophies", () => {
   });
 
   it("없거나 숨김인 시상식, 형식이 틀린 slug는 404", async () => {
-    expect((await give(laugh, { slug: "nothere2" })).status).toBe(404);
+    expect((await give(preset, { slug: "nothere2" })).status).toBe(404);
     await seed({ status: "hidden" }, "hidden23");
-    expect((await give(laugh, { slug: "hidden23" })).status).toBe(404);
+    expect((await give(preset, { slug: "hidden23" })).status).toBe(404);
 
     fake.reads.length = 0;
-    const bad = await give(laugh, { slug: "BAD_SLUG" });
+    const bad = await give(preset, { slug: "BAD_SLUG" });
     expect(bad.status).toBe(404);
     expect(await bad.json()).toEqual({ error: "not_found", message: "시상식을 찾을 수 없어요" });
     expect(fake.reads).toHaveLength(0);
@@ -209,7 +209,7 @@ describe("POST /api/ceremonies/[slug]/trophies", () => {
 
 describe("voterId 쿠키", () => {
   it("쿠키가 없으면 새로 만들고 Set-Cookie에 실어요", async () => {
-    const res = await give(laugh, { voter: null });
+    const res = await give(preset, { voter: null });
     expect(res.status).toBe(201);
     const setCookie = res.headers.get("Set-Cookie")!;
     const voter = setCookie.match(/^voterId=([A-Za-z0-9_-]{21});/)?.[1];
@@ -225,13 +225,13 @@ describe("voterId 쿠키", () => {
 
   it("프로덕션에서는 Secure를 붙여요", async () => {
     vi.stubEnv("NODE_ENV", "production");
-    const res = await give(laugh, { voter: null });
+    const res = await give(preset, { voter: null });
     expect(res.headers.get("Set-Cookie")).toContain("Secure");
   });
 
   it("에러 응답에도 새 쿠키를 실어요", async () => {
     for (const res of [
-      await give(laugh, { voter: null, slug: "BAD_SLUG" }), // 404
+      await give(preset, { voter: null, slug: "BAD_SLUG" }), // 404
       await give({ awardId: "nope" }, { voter: null }), // 400
     ]) {
       expect(res.status).toBeGreaterThanOrEqual(400);
@@ -240,12 +240,12 @@ describe("voterId 쿠키", () => {
   });
 
   it("쿠키가 이미 있으면 Set-Cookie를 보내지 않아요", async () => {
-    const res = await give(laugh);
+    const res = await give(preset);
     expect(res.headers.get("Set-Cookie")).toBeNull();
   });
 
   it("형식이 틀린 voterId 쿠키는 새로 발급해요", async () => {
-    const res = await give(laugh, { cookie: "voterId=short" });
+    const res = await give(preset, { cookie: "voterId=short" });
     expect(res.headers.get("Set-Cookie")).toMatch(/^voterId=[A-Za-z0-9_-]{21};/);
     expect(fake.docs.has(`ceremonies/${SLUG}/trophies/${trophyDocId("short")}`)).toBe(false);
   });
@@ -254,8 +254,8 @@ describe("voterId 쿠키", () => {
 describe("욕설 필터", () => {
   it.each([
     ["직접 지은 상 이름", { awardId: "custom", customName: "나쁜 말", reason: "", anonymous: true }, "customName"],
-    ["시상 사유", { ...laugh, reason: "나1쁜말 대장" }, "reason"],
-    ["닉네임", { ...laugh, senderName: "나쁜말" }, "senderName"],
+    ["시상 사유", { ...preset, reason: "나1쁜말 대장" }, "reason"],
+    ["닉네임", { ...preset, senderName: "나쁜말" }, "senderName"],
   ])("%s에 금지 단어 → 400 profanity(field), 저장하지 않아요", async (_label, body, field) => {
     const res = await give(body);
     expect(res.status).toBe(400);
@@ -265,13 +265,13 @@ describe("욕설 필터", () => {
   });
 
   it("익명이면 닉네임은 검사하지 않아요(저장도 안 함)", async () => {
-    const res = await give({ ...laugh, anonymous: true, senderName: "나쁜말" });
+    const res = await give({ ...preset, anonymous: true, senderName: "나쁜말" });
     expect(res.status).toBe(201);
     expect(fake.docs.get(trophyPath(VOTER))?.senderName).toBeNull();
   });
 
   it("예외 단어가 들어간 사유는 통과", async () => {
-    expect((await give({ ...laugh, reason: "나쁜말없음 인증" })).status).toBe(201);
+    expect((await give({ ...preset, reason: "나쁜말없음 인증" })).status).toBe(201);
   });
 });
 
@@ -282,9 +282,9 @@ describe("IP 요청 제한", () => {
 
   it(`같은 IP에서 10분에 ${TROPHY_RATE_LIMIT}번까지, 그다음은 429`, async () => {
     for (let i = 0; i < TROPHY_RATE_LIMIT; i++) {
-      expect((await give(laugh, { voter: voterN(i) })).status).toBe(201);
+      expect((await give(preset, { voter: voterN(i) })).status).toBe(201);
     }
-    const res = await give(laugh, { voter: voterN(TROPHY_RATE_LIMIT) });
+    const res = await give(preset, { voter: voterN(TROPHY_RATE_LIMIT) });
     expect(res.status).toBe(429);
     expect(await res.json()).toEqual({ error: "rate_limited", message: "잠시 후 다시 시도해 주세요" });
     const retryAfter = Number(res.headers.get("Retry-After"));
@@ -293,27 +293,27 @@ describe("IP 요청 제한", () => {
     expect(fake.docs.get(`ceremonies/${SLUG}`)?.trophyCount).toBe(7 + TROPHY_RATE_LIMIT);
 
     // 다른 IP는 영향 없음
-    expect((await give(laugh, { voter: voterN(99), ip: "198.51.100.9" })).status).toBe(201);
+    expect((await give(preset, { voter: voterN(99), ip: "198.51.100.9" })).status).toBe(201);
   });
 
   it("다음 10분 구간이 되면 다시 받아요", async () => {
-    for (let i = 0; i < TROPHY_RATE_LIMIT; i++) await give(laugh, { voter: voterN(i) });
-    expect((await give(laugh, { voter: voterN(50) })).status).toBe(429);
+    for (let i = 0; i < TROPHY_RATE_LIMIT; i++) await give(preset, { voter: voterN(i) });
+    expect((await give(preset, { voter: voterN(50) })).status).toBe(429);
     vi.setSystemTime(new Date(BEFORE_REVEAL.getTime() + RATE_LIMIT_WINDOW_SEC * 1000));
-    expect((await give(laugh, { voter: voterN(51) })).status).toBe(201);
+    expect((await give(preset, { voter: voterN(51) })).status).toBe(201);
   });
 
   it("시상식 확인(404·410) 다음, 검증(400) 전에 세요", async () => {
-    await give(laugh, { slug: "nothere2" }); // 404: 세지 않음
-    await give(laugh); // 201
-    await give(laugh); // 409: 셈
+    await give(preset, { slug: "nothere2" }); // 404: 세지 않음
+    await give(preset); // 201
+    await give(preset); // 409: 셈
     await give({ awardId: "nope" }, { voter: voterN(1) }); // 400 invalid: 셈
     await give("{bad", { voter: voterN(2) }); // 400 bad_request: 셈
-    await give({ ...laugh, reason: "나쁜말" }, { voter: voterN(3) }); // 400 profanity: 셈
+    await give({ ...preset, reason: "나쁜말" }, { voter: voterN(3) }); // 400 profanity: 셈
     expect(rateCounts()).toEqual([5]);
 
     vi.setSystemTime(REVEAL_AT);
-    await give(laugh, { voter: voterN(4) }); // 410: 세지 않음
+    await give(preset, { voter: voterN(4) }); // 410: 세지 않음
     expect(rateCounts()).toEqual([5]);
   });
 
@@ -323,7 +323,7 @@ describe("IP 요청 제한", () => {
   });
 
   it("rateLimits 문서 id는 trophy:{ipHash}_{창}, IP 원문은 없어요", async () => {
-    await give(laugh);
+    await give(preset);
     const keys = [...fake.docs.keys()].filter((key) => key.startsWith("rateLimits/"));
     expect(keys).toHaveLength(1);
     expect(keys[0]).toMatch(/^rateLimits\/trophy:[0-9a-f]{64}_\d+$/);
