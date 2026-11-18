@@ -11,26 +11,10 @@
 import { stdin as input, stdout as output } from "node:process";
 import { createInterface } from "node:readline/promises";
 
-import { cert, initializeApp } from "firebase-admin/app";
-import { getFirestore } from "firebase-admin/firestore";
-
 import { isValidSlug } from "../src/lib/slug";
+import { connectFirestore, fail } from "./lib/admin";
 
 const USAGE = "사용법: npx tsx scripts/hide-ceremony.ts <slug> [--unhide]";
-
-/** src/lib/firebase-admin.ts의 normalizePrivateKey와 같은 처리(그 파일은 server-only라 여기서 불러올 수 없다). */
-function normalizePrivateKey(raw: string): string {
-  let key = raw.trim();
-  if (key.length >= 2 && ((key.startsWith('"') && key.endsWith('"')) || (key.startsWith("'") && key.endsWith("'")))) {
-    key = key.slice(1, -1);
-  }
-  return key.replace(/\\r\\n|\\n/g, "\n").trim();
-}
-
-function fail(message: string): never {
-  console.error(message);
-  process.exit(1);
-}
 
 async function main() {
   const args = process.argv.slice(2);
@@ -42,25 +26,7 @@ async function main() {
   const next = flags.includes("--unhide") ? "active" : "hidden";
   if (!isValidSlug(slug)) fail(`slug 형식이 올바르지 않아요: ${slug}`);
 
-  try {
-    process.loadEnvFile(".env.local");
-  } catch {
-    fail(".env.local을 찾을 수 없어요. 프로젝트 폴더에서 실행해 주세요.");
-  }
-  const { FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY } = process.env;
-  if (!FIREBASE_PROJECT_ID || !FIREBASE_CLIENT_EMAIL || !FIREBASE_PRIVATE_KEY) {
-    fail(".env.local에 FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY가 필요해요.");
-  }
-
-  const db = getFirestore(
-    initializeApp({
-      credential: cert({
-        projectId: FIREBASE_PROJECT_ID,
-        clientEmail: FIREBASE_CLIENT_EMAIL,
-        privateKey: normalizePrivateKey(FIREBASE_PRIVATE_KEY),
-      }),
-    }),
-  );
+  const db = connectFirestore();
 
   const ref = db.collection("ceremonies").doc(slug);
   const snap = await ref.get();

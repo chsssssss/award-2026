@@ -101,3 +101,30 @@ export function groupAwards(docs: { id: string; data: DocumentData }[]): ManageA
     )
     .map((group) => group.award);
 }
+
+/** 트로피 문서 id: SHA-256(voterId) 앞 20자(hex). */
+const TROPHY_ID = /^[0-9a-f]{20}$/;
+
+/** 결과 화면에서만 쓰는 기능(메시지 숨기기)의 권한 확인: 토큰 → 공개 여부(서버 시각). */
+export async function checkRevealedOwner(
+  slug: string,
+  authorizationHeader: string | null | undefined,
+  now: Date,
+): Promise<"ok" | "unauthorized" | "not_revealed"> {
+  const ceremony = await verifyOwner(slug, authorizationHeader);
+  if (!ceremony) return "unauthorized";
+  return isRevealed(ceremony.revealAt, now) ? "ok" : "not_revealed";
+}
+
+/**
+ * 메시지 숨기기/다시 보이기. 이 시상식 아래 경로로만 찾으므로 다른 시상식의 트로피는 찾지 못한다(false).
+ * 개수(trophyCount)는 바꾸지 않는다.
+ */
+export async function updateTrophyHidden(slug: string, trophyId: string, hidden: boolean): Promise<boolean> {
+  if (!TROPHY_ID.test(trophyId)) return false;
+  const ref = ceremonyRef(slug).collection(TROPHIES).doc(trophyId);
+  const snap = await ref.get();
+  if (!snap.exists) return false;
+  await ref.update({ hidden });
+  return true;
+}

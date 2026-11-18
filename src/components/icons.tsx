@@ -45,3 +45,20 @@ export function CloseIcon({ size = 22, color = colors.ink, className }: IconProp
     </svg>
   );
 }
+
+/** 메시지 숨기기: 눈에 사선 */
+export function EyeOffIcon({ size = 18, color = colors.subtle, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" className={className}>
+      <path
+        d="M3 12 C5.5 7.5 8.5 5.5 12 5.5 C15.5 5.5 18.5 7.5 21 12 C18.5 16.5 15.5 18.5 12 18.5 C8.5 18.5 5.5 16.5 3 12 Z"
+        fill="none"
+        stroke={color}
+        strokeWidth="1.8"
+        strokeLinejoin="round"
+      />
+      <circle cx="12" cy="12" r="3" fill="none" stroke={color} strokeWidth="1.8" />
+      <path d="M4 4 L20 20" stroke={color} strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}

@@ -4,13 +4,13 @@ import { useState, useSyncExternalStore, type ReactNode } from "react";
 
 import { Button } from "@/components/Button";
 import { ShareSheet } from "@/components/ShareSheet";
-import { TrophyIcon } from "@/components/TrophyIcon";
 import type { ManageBeforeReveal } from "@/lib/manage-types";
 import { buildFriendUrl, buildManageUrl, parseOwnerToken } from "@/lib/owner-link";
 import { readStorage, savedLinkKey } from "@/lib/storage";
 import { formatDday, formatKoreanDate } from "@/lib/time";
 
 import { FriendLink } from "./FriendLink";
+import { RevealedBoard } from "./RevealedBoard";
 import { SaveLinkCard } from "./SaveLinkCard";
 import { TrophyGrid } from "./TrophyGrid";
 import { useManageData, type ManageState } from "./useManageData";
@@ -73,17 +73,19 @@ function OwnerBoard({ slug, token }: { slug: string; token: string }) {
           />
         </div>
       )}
-      <BoardContent slug={slug} state={state} retry={retry} />
+      <BoardContent slug={slug} token={token} state={state} retry={retry} />
     </Shell>
   );
 }
 
 function BoardContent({
   slug,
+  token,
   state,
   retry,
 }: {
   slug: string;
+  token: string;
   state: ManageState;
   retry: () => void;
 }) {
@@ -102,7 +104,7 @@ function BoardContent({
         </div>
       );
     case "ready":
-      if (state.data.revealed) return <RevealedPlaceholder name={state.data.name} />;
+      if (state.data.revealed) return <RevealedBoard slug={slug} token={token} data={state.data} />;
       return (
         <BeforeReveal slug={slug} data={state.data} days={state.days} newFrom={state.newFrom} />
       );
@@ -176,21 +178,6 @@ function BeforeReveal({
         />
       )}
     </>
-  );
-}
-
-/** 공개 후 결과 화면은 12/8에 만든다. 오늘은 임시 안내만. */
-function RevealedPlaceholder({ name }: { name: string }) {
-  return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-5 py-10 text-center">
-      <TrophyIcon size={96} />
-      <div>
-        <h1 className="font-display text-[28px] font-extrabold tracking-[-0.4px]">
-          결과가 공개됐어요!
-        </h1>
-        <p className="mt-2 text-sm text-muted">{name}의 결과 화면을 준비하고 있어요</p>
-      </div>
-    </div>
   );
 }
 
