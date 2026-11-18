@@ -93,7 +93,7 @@ function Card({ title, sub }: CardProps) {
             display: "flex",
             flexDirection: "column",
             marginTop: 22,
-            fontFamily: "Myeongjo",
+            fontFamily: "Myeongjo, MyeongjoExt", // 2,350자 밖의 글자는 보조 명조로
             fontWeight: 800,
             fontSize: titleSize,
             lineHeight: 1.3,
@@ -112,7 +112,7 @@ function Card({ title, sub }: CardProps) {
 async function render(props: CardProps): Promise<ImageResponse> {
   return new ImageResponse(<Card {...props} />, {
     ...OG_SIZE,
-    fonts: await getOgFonts(),
+    fonts: await getOgFonts(props.title.join("")),
     headers: { "Cache-Control": OG_CACHE_CONTROL },
   });
 }

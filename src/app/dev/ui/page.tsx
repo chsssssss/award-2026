@@ -7,6 +7,12 @@ import { colors, colorTokens } from "@/lib/colors";
 
 export const metadata = { title: "UI 견본 (dev)" };
 
+const STORY_PREVIEWS = [
+  { label: "2자", name: "지민" },
+  { label: "8자", name: "김수한무거북이와" },
+  { label: "영문 8자", name: "Victoria" },
+] as const;
+
 const OG_PREVIEWS = [
   { label: "이름 2자", name: "지민" },
   { label: "이름 8자", name: "김수한무거북이와" },
@@ -114,6 +120,32 @@ export default function DevUiPage() {
           <p className="mt-4 text-xs text-subtle">danger</p>
           <p className="mt-1 text-[13px] text-danger">이름은 8자까지 쓸 수 있어요</p>
         </div>
+      </Section>
+
+      <Section title="초대 스토리 이미지 (1080×1920)">
+        <p className="text-xs text-subtle">
+          /api/dev/invite-preview?name= 로 그려요. 누르면 원본 크기로 열려요.
+        </p>
+        <ul className="mt-3 grid grid-cols-3 gap-2.5">
+          {STORY_PREVIEWS.map(({ label, name }) => {
+            const src = `/api/dev/invite-preview?name=${encodeURIComponent(name)}`;
+            return (
+              <li key={label} className="min-w-0">
+                <a href={src} target="_blank" rel="noopener noreferrer" className="block">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={src}
+                    alt={`${label} 이름 초대 스토리`}
+                    width={1080}
+                    height={1920}
+                    className="aspect-[9/16] h-auto w-full rounded-[10px] border border-line object-cover"
+                  />
+                </a>
+                <span className="mt-1.5 block text-center text-xs text-muted">{label}</span>
+              </li>
+            );
+          })}
+        </ul>
       </Section>
 
       <Section title="링크 미리보기 (1200×630)">

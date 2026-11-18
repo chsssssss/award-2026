@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { GET as devPreview } from "@/app/api/dev/og-preview/route";
 
-import { getOgFonts } from "./og-fonts";
+import { getOgFonts, needsExtendedHangul } from "./og-fonts";
 import { OG_CACHE_CONTROL, renderCeremonyImage, renderDefaultImage } from "./og-image";
 
 afterEach(() => vi.unstubAllEnvs());
@@ -16,10 +16,8 @@ async function pngSize(response: Response) {
 }
 
 describe("getOgFonts", () => {
-  it("세 폰트를 TrueType으로 읽고, 다시 불러도 같은 Promise를 준다", async () => {
-    const first = getOgFonts();
-    expect(getOgFonts()).toBe(first);
-    const fonts = await first;
+  it("세 폰트를 TrueType으로 읽고, 다시 불러도 파일을 다시 읽지 않는다", async () => {
+    const fonts = await getOgFonts();
     expect(fonts.map(({ name, weight }) => `${name}:${weight}`)).toEqual([
       "Myeongjo:800",
       "NotoSansKR:400",
@@ -29,6 +27,23 @@ describe("getOgFonts", () => {
       const data = Buffer.from(font.data as Buffer);
       expect(data.readUInt32BE(0)).toBe(0x00010000); // TrueType(glyf), woff2 아님
     }
+    const again = await getOgFonts("지민");
+    expect(again.map((font) => font.data)).toEqual(fonts.map((font) => font.data));
+    expect(again[0].data).toBe(fonts[0].data); // 같은 Buffer(캐시)
+  });
+
+  it("2,350자 밖의 한글이 있으면 보조 명조를 덧붙인다", async () => {
+    expect(needsExtendedHangul("지민")).toBe(false);
+    expect(needsExtendedHangul("Victoria")).toBe(false);
+    expect(needsExtendedHangul("똠똠이")).toBe(true);
+    expect(needsExtendedHangul("햏")).toBe(true);
+    const fonts = await getOgFonts("똠똠이");
+    expect(fonts.map(({ name, weight }) => `${name}:${weight}`)).toEqual([
+      "Myeongjo:800",
+      "NotoSansKR:400",
+      "NotoSansKR:700",
+      "MyeongjoExt:800",
+    ]);
   });
 });
 

@@ -10,6 +10,9 @@
   - 기호 · ~ – — ‘ ’ “ ” … × → ↑ ↓
 woff2는 ImageResponse가 읽지 못해서 .ttf로 저장한다.
 
+보조 폰트(Myeongjo-ExtraBold-Ext.ttf): 2,350자에 없는 나머지 한글 음절(8,822자)만 담은 명조.
+이름에 그런 글자(예: 똠)가 있을 때만 읽어서, 네트워크 없이도 같은 명조로 그린다.
+
 나눔명조는 OFL의 예약 글꼴 이름(Reserved Font Name)에 "Nanum"이 있어서,
 수정본(서브셋)은 글꼴 안의 이름을 바꿔서 저장한다. 저작권·라이선스 문구는 그대로 남긴다.
 """
@@ -36,6 +39,8 @@ FONTS = [
     ("NotoSansKR-Regular.ttf", "NotoSansKR-Regular.ttf", None),
     ("NotoSansKR-Bold.ttf", "NotoSansKR-Bold.ttf", None),
 ]
+# 2,350자 밖의 한글 음절만 담는 보조 명조(이름에 드문 글자가 있을 때만 쓴다)
+EXT_FONT = ("NanumMyeongjo-ExtraBold.ttf", "Myeongjo-ExtraBold-Ext.ttf", "Award Myeongjo Ext")
 LICENSE = "OFL.txt"
 
 SYMBOLS = "·~–—‘’“”…×→↑↓"
@@ -121,6 +126,12 @@ def main() -> None:
         subset_font(src, dst, family, unicodes)
         before, after = src.stat().st_size, dst.stat().st_size
         print(f"  {src_name} {human(before)} -> {dst_name} {human(after)} ({after / before:.0%})")
+    src_name, dst_name, family = EXT_FONT
+    ks = set(hangul)
+    ext_unicodes = [cp for cp in range(0xAC00, 0xD7A4) if cp not in ks]
+    src, dst = SRC / src_name, OUT / dst_name
+    subset_font(src, dst, family, ext_unicodes)
+    print(f"  {src_name} {human(src.stat().st_size)} -> {dst_name} {human(dst.stat().st_size)} (보조: 나머지 한글 {len(ext_unicodes)}자)")
     shutil.copyfile(SRC / LICENSE, OUT / LICENSE)
     print(f"  {LICENSE} 복사")
 

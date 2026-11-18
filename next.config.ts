@@ -21,10 +21,11 @@ const nextConfig: NextConfig = {
   cacheComponents: true,
   partialPrefetching: true,
   htmlLimitedBots: HTML_LIMITED_BOTS,
-  // 미리보기 이미지 라우트(/opengraph-image, /s/[slug]/opengraph-image)가 실행 중에 읽는 폰트.
+  // 이미지 라우트(링크 미리보기 /opengraph-image, 스토리 이미지 /api/story/*)가 실행 중에 읽는 폰트.
   // fs.readFile로 읽는 파일은 배포 묶음에서 빠질 수 있어서 직접 포함시킨다.
   outputFileTracingIncludes: {
     "/**/opengraph-image*": ["./assets/fonts/**"],
+    "/api/story/**": ["./assets/fonts/**"],
   },
   turbopack: {
     rules: {
