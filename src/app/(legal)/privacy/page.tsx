@@ -18,14 +18,12 @@ export default function PrivacyPage() {
       <Section n={1} title="운영자와 문의처">
         <List
           items={[
-            <>
-              운영자: <Todo>[운영자 이름]</Todo>
-            </>,
+            "운영자: 차희선",
             <>
               문의: <ContactLink />
             </>,
             <>
-              개인정보 보호책임자: <Todo>[이름·연락처 확인 필요]</Todo>
+              개인정보 보호책임자: 차희선(<ContactLink />)
             </>,
           ]}
         />
@@ -60,23 +58,29 @@ export default function PrivacyPage() {
       </Section>
 
       <Section n={5} title="처리 위탁과 국외 이전">
-        <p>서비스를 운영하려고 아래 회사에 정보 처리를 맡겨요.</p>
+        <p>서비스를 운영하려고 아래 회사에 정보 처리를 맡겨요. 정보는 서비스를 쓰는 순간 인터넷(HTTPS 암호화)으로 전송돼요.</p>
         <List
           items={[
             <>
-              Google(Firebase Firestore, 서울 리전): 데이터 저장 <Todo>[이전 국가·방법 확인 필요]</Todo>
+              <b>Google</b>(Firebase Firestore): 시상식과 트로피 정보 저장. 저장 위치는 대한민국(서울)이에요.
             </>,
             <>
-              Vercel: 웹사이트 호스팅 <Todo>[이전 국가·방법 확인 필요]</Todo>
+              <b>Vercel</b>: 웹사이트 호스팅. 서버는 대한민국(서울)에서 실행되고, 회사는 미국에 있어요.{" "}
+              <Todo>[호스팅 접속 기록(IP 등) 보관 여부·기간 확인 필요]</Todo>
             </>,
             <>
-              PostHog: 서비스 이용 기록 분석 <Todo>[이전 국가·방법 확인 필요]</Todo>
+              <b>PostHog</b>: 서비스 이용 기록 분석(페이지 주소, 버튼 사용, 브라우저·기기 정보). 미국으로 전송되고, IP
+              주소는 저장하지 않아요.
             </>,
             <>
-              Sentry: 오류 기록 <Todo>[이전 국가·방법 확인 필요]</Todo>
+              <b>Sentry</b>: 오류 기록(오류 내용, 페이지 주소, 브라우저·기기 정보). 미국으로 전송되고, IP 주소는 저장하지
+              않아요.
             </>,
           ]}
         />
+        <p>
+          <Todo>[각 회사의 개인정보 문의처, 보관 기간, 국외 이전을 거부하는 방법과 그때의 불이익 확인 필요]</Todo>
+        </p>
       </Section>
 
       <Section n={6} title="만 14세 미만">

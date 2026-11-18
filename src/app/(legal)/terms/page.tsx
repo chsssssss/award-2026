@@ -86,7 +86,7 @@ export default function TermsPage() {
 
       <Section n={8} title="문의">
         <p>
-          운영자: <Todo>[운영자 이름]</Todo> · 문의: <ContactLink />
+          운영자: 차희선 · 문의: <ContactLink />
         </p>
       </Section>
     </LegalPage>
