@@ -1,3 +1,4 @@
+import { withSentryConfig } from "@sentry/nextjs/config";
 import type { NextConfig } from "next";
 
 // 메타데이터를 <head>에 먼저 넣어 줘야 하는 봇(링크 미리보기 수집기 등).
@@ -40,4 +41,13 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+// Sentry: 빌드 후 소스맵을 올려 프로덕션 스택 트레이스를 읽을 수 있게 한다.
+// SENTRY_AUTH_TOKEN이 있을 때만 올린다(Vercel 환경변수에 넣는다. 커밋하지 않는다).
+export default withSentryConfig(nextConfig, {
+  org: "d93c081d1963",
+  project: "award-2026",
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+  widenClientFileUpload: true,
+  // CI가 아닐 때는 업로드 로그를 줄인다
+  silent: !process.env.CI,
+});

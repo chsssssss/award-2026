@@ -10,6 +10,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@sentry/nextjs": "11.10.0",
     "firebase-admin": "^14.5.1",
     "nanoid": "^6.0.2",
     "next": "16.4.6",
