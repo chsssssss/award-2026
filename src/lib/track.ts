@@ -7,7 +7,7 @@ import type { AwardId } from "./awards";
 
 type TrackEvents = {
   ceremony_created: { ref: string };
-  manage_link_saved: { method: "copy" | "google_calendar" | "ics" | "confirm" };
+  manage_link_saved: { method: "copy" | "confirm" };
   invite_image_opened: undefined;
   invite_image_shared: { method: "web_share" | "long_press_hint" };
   link_copied: { where: "share_sheet" | "owner_page" };

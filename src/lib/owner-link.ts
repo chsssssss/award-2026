@@ -12,7 +12,7 @@ export function parseOwnerToken(hash: string): string | null {
   return /^[A-Za-z0-9_-]{16,128}$/.test(token) ? token : null;
 }
 
-/** 복사·캘린더에 넣을 정리된 관리 링크(쿼리 등 다른 값은 뺀다). */
+/** 복사에 쓸 정리된 관리 링크(쿼리 등 다른 값은 뺀다). */
 export function buildManageUrl(origin: string, slug: string, token: string) {
   return `${origin.replace(/\/+$/, "")}/m/${slug}#${token}`;
 }
