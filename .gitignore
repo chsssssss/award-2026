@@ -56,3 +56,6 @@ next-env.d.ts
 
 # curl cookie jars from README examples
 cookies*.txt
+
+# Sentry 마법사가 만드는 인증 토큰 파일(.env*에도 걸리지만 명시해 둔다)
+.env.sentry-build-plugin

@@ -1,6 +1,9 @@
 // Sentry 공통 설정(브라우저·서버·엣지). CLAUDE.md: 토큰·IP·voterId·이름·메시지를 에러 리포트에 남기지 않는다.
+// - NODE_ENV가 production일 때만 켠다(Vercel의 프로덕션·미리보기 빌드).
 // - dataCollection으로 IP·쿠키·헤더·요청 본문·쿼리·지역 변수 수집을 끈다.
-// - before* 훅에서 주소의 # 뒤(관리 토큰)와 쿼리 값을 지운다(analytics-url의 sanitizeUrl과 같은 규칙).
+//   (v11에서 sendDefaultPii 옵션은 없어졌고 dataCollection이 그 역할을 한다)
+// - beforeSend·beforeSendTransaction·beforeBreadcrumb에서 요청 본문·쿠키·헤더(Authorization 포함)를 버리고,
+//   주소의 # 뒤(관리 토큰)와 쿼리 값(sig·exp 포함, ref만 남김)을 지운다(analytics-url의 sanitizeUrl과 같은 규칙).
 // - 화면 녹화(Session Replay)와 사용자 피드백 위젯은 쓰지 않는다.
 
 import type { Breadcrumb, ErrorEvent, Log, Options, TransactionEvent } from "@sentry/core";
@@ -31,7 +34,7 @@ export function deepScrub<T>(value: T, depth = 0): T {
   return out as T;
 }
 
-/** 오류 이벤트: 사용자·쿠키·본문·쿼리를 빼고 주소를 정리한다. */
+/** 오류·트랜잭션 이벤트: 사용자·쿠키·헤더·본문·쿼리를 빼고 주소를 정리한다. */
 export function scrubEvent<E extends ErrorEvent | TransactionEvent>(event: E): E {
   const copy = { ...event };
   delete copy.user;
@@ -51,18 +54,18 @@ export function scrubLog(log: Log): Log {
   return deepScrub(log);
 }
 
-/** 개발: 모든 추적, 그 밖(프로덕션·미리보기): 10%. */
-export function tracesSampleRate(): number {
-  return process.env.NODE_ENV === "development" ? 1.0 : 0.1;
-}
+export const TRACES_SAMPLE_RATE = 0.1;
 
-/** 세 런타임이 같이 쓰는 init 옵션. DSN이 없으면 보내지 않는다. */
+/** 세 런타임이 같이 쓰는 init 옵션. 프로덕션 빌드이고 DSN이 있을 때만 보낸다. */
 export function baseSentryOptions(dsn: string | undefined, environment: string | undefined): Options {
   return {
     dsn,
-    enabled: Boolean(dsn),
+    enabled: Boolean(dsn) && process.env.NODE_ENV === "production",
     environment: environment || process.env.NODE_ENV,
-    tracesSampleRate: tracesSampleRate(),
+    tracesSampleRate: TRACES_SAMPLE_RATE,
+    // 추적을 트랜잭션 단위로 보낸다. 기본값(stream)에서는 beforeSendTransaction이 무시되므로
+    // 트랜잭션 정리가 확실히 적용되도록 static을 쓴다(SDK v12로 올릴 때 beforeSendSpan으로 옮긴다).
+    traceLifecycle: "static",
     dataCollection: {
       userInfo: false, // IP·사용자 정보
       cookies: false, // voterId 쿠키
@@ -74,8 +77,7 @@ export function baseSentryOptions(dsn: string | undefined, environment: string |
       genAI: { inputs: false, outputs: false },
     },
     beforeSend: (event) => scrubEvent(event),
-    // v11은 추적을 span 단위로 보낸다(beforeSendTransaction은 쓰이지 않음)
-    beforeSendSpan: (span) => deepScrub(span),
+    beforeSendTransaction: (event) => scrubEvent(event), // 트랜잭션 안의 span 데이터까지 정리된다
     beforeBreadcrumb: (breadcrumb) => scrubBreadcrumb(breadcrumb),
     beforeSendLog: (log) => scrubLog(log),
   };

@@ -1,5 +1,5 @@
 import type { ErrorEvent } from "@sentry/core";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { baseSentryOptions, deepScrub, scrubBreadcrumb, scrubEvent, scrubText } from "./sentry-options";
 
@@ -75,13 +75,39 @@ describe("scrubBreadcrumb / deepScrub", () => {
   });
 });
 
+describe("결과 이미지 서명 값(sig·exp)", () => {
+  it("쿼리의 sig·exp를 지워요(이벤트·브레드크럼 모두)", () => {
+    const url = "https://a.example/api/result/ab3defgh.png?sig=SECRETSIG&exp=1798000000&ref=story";
+    expect(scrubText(url)).toBe("https://a.example/api/result/ab3defgh.png?ref=story");
+    const crumb = scrubBreadcrumb({ category: "fetch", data: { url, method: "GET" } });
+    expect(JSON.stringify(crumb)).not.toContain("SECRETSIG");
+    expect(JSON.stringify(crumb)).not.toContain("1798000000");
+  });
+});
+
 describe("baseSentryOptions", () => {
-  it("DSN이 없으면 꺼지고, 수집 범주는 모두 끔", () => {
-    const off = baseSentryOptions(undefined, undefined);
-    expect(off.enabled).toBe(false);
-    const on = baseSentryOptions("https://k@o1.ingest.us.sentry.io/1", "production");
-    expect(on.enabled).toBe(true);
+  afterEach(() => vi.unstubAllEnvs());
+  const DSN = "https://k@o1.ingest.us.sentry.io/1";
+
+  it("프로덕션 빌드이고 DSN이 있을 때만 켜져요", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    expect(baseSentryOptions(DSN, "production").enabled).toBe(true);
+    expect(baseSentryOptions(undefined, "production").enabled).toBe(false);
+    vi.stubEnv("NODE_ENV", "development");
+    expect(baseSentryOptions(DSN, undefined).enabled).toBe(false);
+    vi.stubEnv("NODE_ENV", "test");
+    expect(baseSentryOptions(DSN, undefined).enabled).toBe(false);
+  });
+
+  it("추적 10%, 트랜잭션 정리(static), 수집 범주는 모두 끔, 화면 녹화 없음", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    const on = baseSentryOptions(DSN, "production");
     expect(on.environment).toBe("production");
+    expect(on.tracesSampleRate).toBe(0.1);
+    expect(on.traceLifecycle).toBe("static");
+    expect(typeof on.beforeSend).toBe("function");
+    expect(typeof on.beforeSendTransaction).toBe("function");
+    expect(typeof on.beforeBreadcrumb).toBe("function");
     expect(on.dataCollection).toMatchObject({
       userInfo: false,
       cookies: false,
@@ -90,6 +116,27 @@ describe("baseSentryOptions", () => {
       urlQueryParams: false,
       stackFrameVariables: false,
     });
-    expect(on.integrations).toBeUndefined(); // 화면 녹화(replay)·피드백 없음
+    expect(on.integrations).toBeUndefined(); // replay·피드백 없음
+  });
+
+  it("beforeSendTransaction도 본문·쿠키·Authorization·토큰을 지워요", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    const { beforeSendTransaction } = baseSentryOptions(DSN, "production");
+    const tx = {
+      type: "transaction",
+      transaction: "/m/[slug]",
+      request: {
+        url: "https://a.example/m/ab3defgh#TestToken_TestToken_TestToken_32",
+        headers: { authorization: "Bearer TestToken_TestToken_TestToken_32" },
+        cookies: { voterId: "V1StGXR8_Z5jdHi6B-myT" },
+        data: "{\"reason\":\"비밀사유\"}",
+      },
+      spans: [{ data: { "url.full": "https://a.example/api/result/x.png?sig=S&exp=1" } }],
+    } as unknown as Parameters<NonNullable<typeof beforeSendTransaction>>[0];
+    const out = beforeSendTransaction!(tx, {});
+    const json = JSON.stringify(out);
+    for (const secret of ["TestToken_", "V1StGXR8", "비밀사유", "sig=", "exp="]) {
+      expect(json).not.toContain(secret);
+    }
   });
 });
