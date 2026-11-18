@@ -37,7 +37,7 @@ export const serverError = () =>
 /** 429. Retry-After 헤더(초)를 같이 보낸다. */
 export function rateLimited(retryAfterSec: number): Response {
   return Response.json(
-    { error: "rate_limited", message: "요청이 많아요. 잠시 후 다시 시도해주세요" },
+    { error: "rate_limited", message: "잠시 후 다시 시도해 주세요" },
     {
       status: 429,
       headers: {

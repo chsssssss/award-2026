@@ -1,9 +1,8 @@
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { REVEAL_AT } from "@/lib/constants";
+import { RATE_LIMIT_WINDOW_SEC, REVEAL_AT, TROPHY_RATE_LIMIT } from "@/lib/constants";
 import { db } from "@/lib/firebase-admin";
-import { RATE_LIMIT_RULES } from "@/lib/rate-limit";
 import { trophyDocId } from "@/lib/voter";
 import type { FakeFirestore } from "@/test/fake-firestore";
 
@@ -12,6 +11,13 @@ import { POST } from "./route";
 vi.mock("@/lib/firebase-admin", async () => {
   const { FakeFirestore } = await import("@/test/fake-firestore");
   return { db: new FakeFirestore(), getDb: () => undefined };
+});
+
+// 욕설 필터는 실제 목록 대신 테스트 전용 가짜 단어로 검사한다.
+vi.mock("@/lib/profanity", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/profanity")>();
+  const filter = actual.createProfanityFilter({ badWords: ["나쁜말"], allowWords: ["나쁜말없음"] });
+  return { ...actual, containsProfanity: filter.containsProfanity };
 });
 
 const fake = db as unknown as FakeFirestore;
@@ -245,31 +251,82 @@ describe("voterId 쿠키", () => {
   });
 });
 
-describe("IP 요청 제한", () => {
-  const { limit } = RATE_LIMIT_RULES.giveTrophy;
-  const voterN = (n: number) => `Voter${String(n).padStart(16, "0")}`; // 21자
-
-  it(`같은 IP에서 10분에 ${limit}개까지 만들고, 그다음은 429`, async () => {
-    for (let i = 0; i < limit; i++) {
-      expect((await give(laugh, { voter: voterN(i) })).status).toBe(201);
-    }
-    const res = await give(laugh, { voter: voterN(limit) });
-    expect(res.status).toBe(429);
-    expect(Number(res.headers.get("Retry-After"))).toBeGreaterThan(0);
-    expect(fake.docs.get(`ceremonies/${SLUG}`)?.trophyCount).toBe(7 + limit);
-
-    expect((await give(laugh, { voter: voterN(limit + 1), ip: "198.51.100.9" })).status).toBe(201);
+describe("욕설 필터", () => {
+  it.each([
+    ["직접 지은 상 이름", { awardId: "custom", customName: "나쁜 말", reason: "", anonymous: true }, "customName"],
+    ["시상 사유", { ...laugh, reason: "나1쁜말 대장" }, "reason"],
+    ["닉네임", { ...laugh, senderName: "나쁜말" }, "senderName"],
+  ])("%s에 금지 단어 → 400 profanity(field), 저장하지 않아요", async (_label, body, field) => {
+    const res = await give(body);
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: "profanity", field, message: "다른 표현으로 바꿔주세요" });
+    expect(fake.creates).toHaveLength(0);
+    expect(fake.docs.get(`ceremonies/${SLUG}`)?.trophyCount).toBe(7);
   });
 
-  it("중복(409)·종료(410)·검증 실패(400)는 횟수에 넣지 않아요", async () => {
-    await give(laugh); // 1회
-    await give(laugh); // 409
-    await give({ awardId: "nope" }, { voter: voterN(1) }); // 400
+  it("익명이면 닉네임은 검사하지 않아요(저장도 안 함)", async () => {
+    const res = await give({ ...laugh, anonymous: true, senderName: "나쁜말" });
+    expect(res.status).toBe(201);
+    expect(fake.docs.get(trophyPath(VOTER))?.senderName).toBeNull();
+  });
+
+  it("예외 단어가 들어간 사유는 통과", async () => {
+    expect((await give({ ...laugh, reason: "나쁜말없음 인증" })).status).toBe(201);
+  });
+});
+
+describe("IP 요청 제한", () => {
+  const voterN = (n: number) => `Voter${String(n).padStart(16, "0")}`; // 21자
+  const rateCounts = () =>
+    [...fake.docs.entries()].filter(([path]) => path.startsWith("rateLimits/")).map(([, d]) => d.count);
+
+  it(`같은 IP에서 10분에 ${TROPHY_RATE_LIMIT}번까지, 그다음은 429`, async () => {
+    for (let i = 0; i < TROPHY_RATE_LIMIT; i++) {
+      expect((await give(laugh, { voter: voterN(i) })).status).toBe(201);
+    }
+    const res = await give(laugh, { voter: voterN(TROPHY_RATE_LIMIT) });
+    expect(res.status).toBe(429);
+    expect(await res.json()).toEqual({ error: "rate_limited", message: "잠시 후 다시 시도해 주세요" });
+    const retryAfter = Number(res.headers.get("Retry-After"));
+    expect(retryAfter).toBeGreaterThan(0);
+    expect(retryAfter).toBeLessThanOrEqual(RATE_LIMIT_WINDOW_SEC);
+    expect(fake.docs.get(`ceremonies/${SLUG}`)?.trophyCount).toBe(7 + TROPHY_RATE_LIMIT);
+
+    // 다른 IP는 영향 없음
+    expect((await give(laugh, { voter: voterN(99), ip: "198.51.100.9" })).status).toBe(201);
+  });
+
+  it("다음 10분 구간이 되면 다시 받아요", async () => {
+    for (let i = 0; i < TROPHY_RATE_LIMIT; i++) await give(laugh, { voter: voterN(i) });
+    expect((await give(laugh, { voter: voterN(50) })).status).toBe(429);
+    vi.setSystemTime(new Date(BEFORE_REVEAL.getTime() + RATE_LIMIT_WINDOW_SEC * 1000));
+    expect((await give(laugh, { voter: voterN(51) })).status).toBe(201);
+  });
+
+  it("시상식 확인(404·410) 다음, 검증(400) 전에 세요", async () => {
+    await give(laugh, { slug: "nothere2" }); // 404: 세지 않음
+    await give(laugh); // 201
+    await give(laugh); // 409: 셈
+    await give({ awardId: "nope" }, { voter: voterN(1) }); // 400 invalid: 셈
+    await give("{bad", { voter: voterN(2) }); // 400 bad_request: 셈
+    await give({ ...laugh, reason: "나쁜말" }, { voter: voterN(3) }); // 400 profanity: 셈
+    expect(rateCounts()).toEqual([5]);
+
     vi.setSystemTime(REVEAL_AT);
-    await give(laugh, { voter: voterN(2) }); // 410
-    const counts = [...fake.docs.entries()]
-      .filter(([path]) => path.startsWith("rateLimits/"))
-      .map(([, d]) => d.count);
-    expect(counts).toEqual([1]);
+    await give(laugh, { voter: voterN(4) }); // 410: 세지 않음
+    expect(rateCounts()).toEqual([5]);
+  });
+
+  it("한도에 닿으면 검증 전에 429", async () => {
+    for (let i = 0; i < TROPHY_RATE_LIMIT; i++) await give({ awardId: "nope" }, { voter: voterN(i) });
+    expect((await give({ awardId: "nope" }, { voter: voterN(30) })).status).toBe(429);
+  });
+
+  it("rateLimits 문서 id는 trophy:{ipHash}_{창}, IP 원문은 없어요", async () => {
+    await give(laugh);
+    const keys = [...fake.docs.keys()].filter((key) => key.startsWith("rateLimits/"));
+    expect(keys).toHaveLength(1);
+    expect(keys[0]).toMatch(/^rateLimits\/trophy:[0-9a-f]{64}_\d+$/);
+    expect(keys[0]).not.toContain(IP);
   });
 });

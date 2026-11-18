@@ -1,9 +1,8 @@
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { REVEAL_AT } from "@/lib/constants";
+import { CREATE_RATE_LIMIT, RATE_LIMIT_WINDOW_SEC, REVEAL_AT } from "@/lib/constants";
 import { db } from "@/lib/firebase-admin";
-import { RATE_LIMIT_RULES } from "@/lib/rate-limit";
 import { SLUG_ALPHABET } from "@/lib/slug";
 import { hashToken } from "@/lib/token";
 import type { FakeFirestore } from "@/test/fake-firestore";
@@ -16,6 +15,13 @@ const h = vi.hoisted(() => ({ slugs: [] as string[] }));
 vi.mock("@/lib/firebase-admin", async () => {
   const { FakeFirestore } = await import("@/test/fake-firestore");
   return { db: new FakeFirestore(), getDb: () => undefined };
+});
+
+// 욕설 필터는 실제 목록 대신 테스트 전용 가짜 단어로 검사한다.
+vi.mock("@/lib/profanity", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/profanity")>();
+  const filter = actual.createProfanityFilter({ badWords: ["나쁜말"], allowWords: ["나쁜말없음"] });
+  return { ...actual, containsProfanity: filter.containsProfanity };
 });
 
 // 충돌 테스트에서 slug 순서를 정할 수 있게 한다. 큐가 비면 실제 생성기를 쓴다.
@@ -163,40 +169,73 @@ describe("POST /api/ceremonies", () => {
   });
 });
 
+describe("POST /api/ceremonies 욕설 필터", () => {
+  it("이름에 금지 단어가 있으면 저장하지 않고 400 profanity(field: name)", async () => {
+    for (const name of ["나쁜말", "나 쁜 말", "나1쁜말"]) {
+      const res = await postJson({ name });
+      expect(res.status).toBe(400);
+      expect(await res.json()).toEqual({
+        error: "profanity",
+        field: "name",
+        message: "다른 표현으로 바꿔주세요",
+      });
+    }
+    expect(fake.creates).toHaveLength(0);
+  });
+
+  it("예외 단어는 통과", async () => {
+    expect((await postJson({ name: "나쁜말없음" })).status).toBe(201);
+  });
+});
+
 describe("POST /api/ceremonies 요청 횟수 제한", () => {
-  const { limit, windowSec } = RATE_LIMIT_RULES.createCeremony;
   const rateDocs = () =>
     [...fake.docs.keys()].filter((key) => key.startsWith("rateLimits/"));
 
-  it(`같은 IP는 10분에 ${limit}개까지, 그다음은 429와 Retry-After`, async () => {
-    for (let i = 0; i < limit; i++) {
+  it(`같은 IP는 10분에 ${CREATE_RATE_LIMIT}개까지, 그다음은 429와 Retry-After`, async () => {
+    for (let i = 0; i < CREATE_RATE_LIMIT; i++) {
       expect((await postJson({ name: `지민${i}` })).status).toBe(201);
     }
     const res = await postJson({ name: "하나더" });
     expect(res.status).toBe(429);
     expect(await res.json()).toEqual({
       error: "rate_limited",
-      message: "요청이 많아요. 잠시 후 다시 시도해주세요",
+      message: "잠시 후 다시 시도해 주세요",
     });
     const retryAfter = Number(res.headers.get("Retry-After"));
     expect(retryAfter).toBeGreaterThan(0);
-    expect(retryAfter).toBeLessThanOrEqual(windowSec);
-    expect(fake.creates).toHaveLength(limit); // 막힌 요청은 시상식을 만들지 않는다
+    expect(retryAfter).toBeLessThanOrEqual(RATE_LIMIT_WINDOW_SEC);
+    expect(fake.creates).toHaveLength(CREATE_RATE_LIMIT); // 막힌 요청은 시상식을 만들지 않는다
 
     // 다른 IP는 영향 없음
     expect((await postJson({ name: "하은" }, "198.51.100.9")).status).toBe(201);
   });
 
-  it("이름 검증에 실패한 요청은 횟수에 넣지 않아요", async () => {
-    await postJson({ name: "" });
-    await postJson("{bad");
+  it("검증(400)보다 먼저 세요: 형식이 틀린 요청도 횟수에 들어가요", async () => {
+    await postJson({ name: "" }); // 400 invalid
+    await postJson("{bad"); // 400 bad_request
+    await postJson({ name: "나쁜말" }); // 400 profanity
+    const docs = rateDocs();
+    expect(docs).toHaveLength(1);
+    expect(fake.docs.get(docs[0])?.count).toBe(3);
+
+    // 한도를 다 쓰면 검증 전에 429
+    await postJson({ name: "지민" });
+    await postJson({ name: "하은" });
+    expect((await postJson({ name: "" })).status).toBe(429);
+  });
+
+  it("시즌이 끝났으면(410) 세지 않아요", async () => {
+    vi.setSystemTime(REVEAL_AT);
+    expect((await postJson({ name: "지민" })).status).toBe(410);
     expect(rateDocs()).toHaveLength(0);
   });
 
-  it("rateLimits 문서 id에 IP 원문이 들어가지 않아요", async () => {
+  it("rateLimits 문서 id는 create:{ipHash}_{창}, IP 원문은 없어요", async () => {
     await postJson({ name: "지민" });
     const keys = rateDocs();
     expect(keys).toHaveLength(1);
+    expect(keys[0]).toMatch(/^rateLimits\/create:[0-9a-f]{64}_\d+$/);
     expect(keys[0]).not.toContain("203.0.113.7");
     expect(JSON.stringify(fake.docs.get(keys[0]))).not.toContain("203.0.113.7");
   });

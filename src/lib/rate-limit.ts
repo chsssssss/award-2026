@@ -1,97 +1,56 @@
 import "server-only";
 
-import { Timestamp, type Transaction } from "firebase-admin/firestore";
+import { FieldValue, Timestamp } from "firebase-admin/firestore";
 
 import { db } from "./firebase-admin";
 
-// IP 해시 기준 요청 횟수 제한(고정 시간 창).
-// rateLimits/{action}_{ipHash 앞 32자}_{창 시작 초} 문서에 count, expireAt을 저장한다.
+// 요청 횟수 제한(고정 시간 창). rateLimits/{key}_{windowStart} 문서에 count와 expireAt을 둔다.
 // expireAt이 지난 문서는 Firestore TTL 정책(firestore.indexes.json)이 자동으로 지운다.
-// TTL 삭제는 최대 24시간쯤 늦을 수 있으므로 코드에서도 expireAt을 확인한다.
+// 창 번호가 문서 id에 들어가므로 TTL 삭제가 늦어도 지난 창의 문서를 다시 쓰지 않는다.
 
 export const RATE_LIMITS = "rateLimits";
 
-export type RateLimitRule = { limit: number; windowSec: number };
-
-/**
- * 동작별 제한. 한국 모바일망은 여러 사용자가 같은 공인 IP를 쓰는 경우가 많아
- * 사람 한 명 기준보다 넉넉하게 잡는다.
- */
-export const RATE_LIMIT_RULES = {
-  createCeremony: { limit: 20, windowSec: 10 * 60 },
-  // 실제로 만들어진 트로피만 센다(중복·종료·검증 실패는 세지 않음).
-  giveTrophy: { limit: 60, windowSec: 10 * 60 },
-} as const satisfies Record<string, RateLimitRule>;
-
-export type RateLimitAction = keyof typeof RATE_LIMIT_RULES;
-
-export type RateLimitResult =
-  | { ok: true; remaining: number }
-  | { ok: false; retryAfterSec: number };
-
-export function rateLimitKey(
-  action: RateLimitAction,
-  ipHash: string,
-  windowStartMs: number,
-): string {
-  return `${action}_${ipHash.slice(0, 32)}_${Math.floor(windowStartMs / 1000)}`;
+/** 창 번호: floor(현재 시각(초) / windowSec). */
+export function windowStartOf(now: Date, windowSec: number): number {
+  return Math.floor(now.getTime() / 1000 / windowSec);
 }
 
-type TxLike = Pick<Transaction, "get" | "set">;
-
-/**
- * 트랜잭션 안에서 한도를 확인한다(읽기만). 허용이면 commit()을 불러야 1회로 기록된다.
- * 다른 문서와 같은 트랜잭션에 묶어, 실제로 쓰기가 일어날 때만 세고 싶을 때 쓴다.
- */
-export async function reserveRateLimit(
-  tx: TxLike,
-  action: RateLimitAction,
-  ipHash: string,
-  now: Date,
-): Promise<
-  | { ok: true; remaining: number; commit: () => void }
-  | { ok: false; retryAfterSec: number }
-> {
-  const { limit, windowSec } = RATE_LIMIT_RULES[action];
-  const nowMs = now.getTime();
-  const windowMs = windowSec * 1000;
-  const windowStart = Math.floor(nowMs / windowMs) * windowMs;
-  const windowEnd = windowStart + windowMs;
-  const ref = db
-    .collection(RATE_LIMITS)
-    .doc(rateLimitKey(action, ipHash, windowStart));
-
-  const snap = await tx.get(ref);
-  const data = snap.exists ? snap.data() : undefined;
-  const expireAtMs =
-    data?.expireAt instanceof Timestamp ? data.expireAt.toMillis() : 0;
-  const used =
-    data && expireAtMs > nowMs && typeof data.count === "number" ? data.count : 0;
-
-  if (used >= limit) {
-    return {
-      ok: false,
-      retryAfterSec: Math.max(1, Math.ceil((windowEnd - nowMs) / 1000)),
-    };
-  }
-  return {
-    ok: true,
-    remaining: limit - used - 1,
-    commit: () =>
-      tx.set(ref, { count: used + 1, expireAt: Timestamp.fromMillis(windowEnd) }),
-  };
+export function rateLimitDocId(key: string, windowStart: number): string {
+  return `${key}_${windowStart}`;
 }
 
-/** 한 번 쓴 것으로 센다. 한도를 넘으면 ok: false와 다시 시도까지 남은 초. */
-export async function consumeRateLimit(
-  action: RateLimitAction,
-  ipHash: string,
+/** 지금 창이 끝날 때까지 남은 초(Retry-After 헤더용). */
+export function retryAfterSec(now: Date, windowSec: number): number {
+  const endMs = (windowStartOf(now, windowSec) + 1) * windowSec * 1000;
+  return Math.max(1, Math.ceil((endMs - now.getTime()) / 1000));
+}
+
+/**
+ * key(예: "trophy:" + ipHash)의 이번 창 횟수를 트랜잭션으로 1 올린다.
+ * 한도 안이면 true, 이미 한도에 닿았으면 올리지 않고 false.
+ * 처음 만들 때 expireAt = (windowStart + 2) × windowSec 시각.
+ */
+export async function rateLimit(
+  key: string,
+  limit: number,
+  windowSec: number,
   now: Date = new Date(),
-): Promise<RateLimitResult> {
-  return db.runTransaction(async (tx): Promise<RateLimitResult> => {
-    const reserved = await reserveRateLimit(tx, action, ipHash, now);
-    if (!reserved.ok) return reserved;
-    reserved.commit();
-    return { ok: true, remaining: reserved.remaining };
+): Promise<boolean> {
+  const windowStart = windowStartOf(now, windowSec);
+  const ref = db.collection(RATE_LIMITS).doc(rateLimitDocId(key, windowStart));
+
+  return db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) {
+      tx.set(ref, {
+        count: 1,
+        expireAt: Timestamp.fromMillis((windowStart + 2) * windowSec * 1000),
+      });
+      return true;
+    }
+    const count = snap.data()?.count;
+    if (typeof count === "number" && count >= limit) return false;
+    tx.update(ref, { count: FieldValue.increment(1) });
+    return true;
   });
 }

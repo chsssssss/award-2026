@@ -166,8 +166,9 @@ Invoke-RestMethod -Uri "http://localhost:3000/api/manage/$slug" -Headers @{ Auth
 |---|---|---|
 | 만들기 성공 | 201 | `{ slug, manageUrl }` |
 | 이름이 비었거나 8자 초과 | 400 | `{ error: "invalid", field: "name", message }` |
+| 이름에 금지 단어 | 400 | `{ error: "profanity", field: "name", message: "다른 표현으로 바꿔주세요" }` |
 | body가 JSON이 아님 | 400 | `{ error: "bad_request", message }` |
-| 같은 IP에서 10분에 20개 넘게 만들기 | 429 | `{ error: "rate_limited", message }` + `Retry-After`(초) |
+| 같은 IP에서 10분에 5번 넘게 요청(검증 실패 요청도 셈) | 429 | `{ error: "rate_limited", message: "잠시 후 다시 시도해 주세요" }` + `Retry-After`(초) |
 | 공개 시각(2026-12-31 21:00 KST) 이후 만들기 | 410 | `{ error: "season_over", message }` |
 | 없는 시상식, 숨김 처리, slug 형식 오류 | 404 | `{ error: "not_found", message }` |
 
@@ -177,11 +178,15 @@ Invoke-RestMethod -Uri "http://localhost:3000/api/manage/$slug" -Headers @{ Auth
 |---|---|---|
 | 상 주기 성공 | 201 | `{ ok: true }` |
 | 입력 검증 실패(없는 awardId, 상 이름·닉네임 누락, 글자 수 초과) | 400 | `{ error: "invalid", field, message }` |
+| 직접 지은 상 이름·사유·닉네임에 금지 단어 | 400 | `{ error: "profanity", field, message: "다른 표현으로 바꿔주세요" }` |
 | body가 JSON이 아님 | 400 | `{ error: "bad_request", message }` |
 | 없는 시상식, 숨김 처리, slug 형식 오류 | 404 | `{ error: "not_found", message }` |
 | 이미 이 시상식에 상을 줌(같은 voterId) | 409 | `{ error: "already_given", message }` |
 | 시상식의 공개 시각이 지남 | 410 | `{ error: "closed", message }` |
-| 같은 IP에서 10분에 60개 넘게 만들기 | 429 | `{ error: "rate_limited", message }` + `Retry-After`(초) |
+| 같은 IP에서 10분에 20번 넘게 요청(검증 실패·409도 셈) | 429 | `{ error: "rate_limited", message: "잠시 후 다시 시도해 주세요" }` + `Retry-After`(초) |
+
+판단 순서: 시상식 없음(404) → 종료(410) → 요청 제한(429) → 입력 검증·금지 단어(400) → 이미 줌(409).
+요청 제한 숫자는 `src/lib/constants.ts`의 `CREATE_RATE_LIMIT`, `TROPHY_RATE_LIMIT`, `RATE_LIMIT_WINDOW_SEC`에서 바꿔요.
 
 내 시상식 조회(`GET /api/manage/[slug]`, 항상 `Cache-Control: no-store`):
 
@@ -190,3 +195,25 @@ Invoke-RestMethod -Uri "http://localhost:3000/api/manage/$slug" -Headers @{ Auth
 | 공개 전 | 200 | `{ name, revealAt, trophyCount, revealed: false }` |
 | 공개 후(서버 시각 ≥ revealAt) | 200 | `{ name, revealAt, trophyCount, revealed: true, awards }` |
 | 토큰이 틀림·없음, 없는 시상식, slug 형식 오류 | 401 | `{ error: "unauthorized", message: "링크가 올바르지 않아요" }` |
+
+## 운영
+
+### 금지 단어 목록
+
+- `data/badwords.txt`: 금지 단어. 한 줄에 한 단어, `#` 뒤는 주석이에요.
+- `data/allowwords.txt`: 금지 단어가 들어 있어도 괜찮은 말(예: 시발점). 이 부분을 먼저 지우고 검사해요.
+- 비교할 때 띄어쓰기·숫자·특수문자·이모지를 지우고, 같은 글자 3번 이상은 2번으로 줄여요. 한글 초성(ㅅㅂ 등)은 남겨요.
+- 목록을 고친 뒤 배포하면 적용돼요(서버가 처음 쓸 때 읽어서 기억해 둬요).
+
+### 신고 처리: 시상식 숨기기
+
+친구 화면 맨 아래 "신고하기"는 `NEXT_PUBLIC_CONTACT_EMAIL`로 메일을 보내요(제목 `[신고] slug`).
+신고가 오면 프로젝트 폴더에서 아래 명령으로 숨겨요. `.env.local`의 Firebase 계정으로 접속해요.
+
+```bash
+npx tsx scripts/hide-ceremony.ts <slug>            # 숨기기(status: hidden)
+npx tsx scripts/hide-ceremony.ts <slug> --unhide   # 되돌리기(status: active)
+```
+
+이름·트로피 수·지금 상태를 보여준 뒤 `y`를 입력해야 바뀌어요. 숨기면 친구 화면·공개 조회·상 주기가 404가 되고,
+트로피 문서와 주인공의 관리 링크는 그대로 남아요.

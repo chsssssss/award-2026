@@ -4,6 +4,7 @@ import { Suspense } from "react";
 import { TrophyIcon } from "@/components/TrophyIcon";
 import { daysUntil, formatDday, formatKoreanDate } from "@/lib/time";
 
+import { ReportLink } from "./_components/ReportLink";
 import { VoteForm } from "./_components/VoteForm";
 import { ceremonyMetadata, loadCeremony } from "./load";
 
@@ -25,7 +26,7 @@ async function VoteContent({ params }: { params: Promise<{ slug: string }> }) {
   if (!ceremony) notFound();
 
   // 공개 시각이 지났으면 결과 내용 없이 종료 안내만
-  if (ceremony.closed) return <ClosedView name={ceremony.name} />;
+  if (ceremony.closed) return <ClosedView slug={slug} name={ceremony.name} />;
 
   const now = new Date();
   return (
@@ -41,20 +42,24 @@ async function VoteContent({ params }: { params: Promise<{ slug: string }> }) {
         name={ceremony.name}
         revealDateLabel={formatKoreanDate(ceremony.revealAt)}
       />
+      <ReportLink slug={slug} />
     </main>
   );
 }
 
-function ClosedView({ name }: { name: string }) {
+function ClosedView({ slug, name }: { slug: string; name: string }) {
   return (
-    <main className="flex flex-1 flex-col items-center justify-center gap-5 py-8 text-center">
-      <TrophyIcon variant="locked" size={72} />
-      <div>
-        <h1 className="font-display text-2xl font-extrabold tracking-[-0.4px]">
-          {name}님의 시상식이 끝났어요
-        </h1>
-        <p className="mt-2 text-sm text-muted">내년에 또 만나요</p>
+    <main className="flex flex-1 flex-col py-8">
+      <div className="flex flex-1 flex-col items-center justify-center gap-5 text-center">
+        <TrophyIcon variant="locked" size={72} />
+        <div>
+          <h1 className="font-display text-2xl font-extrabold tracking-[-0.4px]">
+            {name}님의 시상식이 끝났어요
+          </h1>
+          <p className="mt-2 text-sm text-muted">내년에 또 만나요</p>
+        </div>
       </div>
+      <ReportLink slug={slug} />
     </main>
   );
 }

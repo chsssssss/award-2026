@@ -26,6 +26,9 @@ const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
     "/**/opengraph-image*": ["./assets/fonts/**"],
     "/api/story/**": ["./assets/fonts/**"],
+    // 욕설 필터 단어 목록(src/lib/profanity.ts)을 읽는 만들기·상 주기 API
+    "/api/ceremonies": ["./data/**"],
+    "/api/ceremonies/**": ["./data/**"],
   },
   turbopack: {
     rules: {

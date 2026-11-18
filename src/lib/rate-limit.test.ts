@@ -1,13 +1,10 @@
 import { Timestamp } from "firebase-admin/firestore";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { db } from "./firebase-admin";
-import {
-  consumeRateLimit,
-  RATE_LIMIT_RULES,
-  rateLimitKey,
-} from "./rate-limit";
+import { db } from "@/lib/firebase-admin";
 import type { FakeFirestore } from "@/test/fake-firestore";
+
+import { rateLimit, rateLimitDocId, retryAfterSec, windowStartOf } from "./rate-limit";
 
 vi.mock("@/lib/firebase-admin", async () => {
   const { FakeFirestore } = await import("@/test/fake-firestore");
@@ -15,68 +12,57 @@ vi.mock("@/lib/firebase-admin", async () => {
 });
 
 const fake = db as unknown as FakeFirestore;
-const IP_A = "a".repeat(64);
-const IP_B = "b".repeat(64);
-const { limit, windowSec } = RATE_LIMIT_RULES.createCeremony;
-// 10분 창의 시작 시각(UTC 정각)
-const WINDOW_START = new Date("2026-12-01T03:00:00Z");
-const at = (sec: number) => new Date(WINDOW_START.getTime() + sec * 1000);
+const WINDOW = 600;
+// 창 경계에 맞춘 시각(2026-12-01T00:00:00Z는 600초로 나누어떨어진다)
+const WINDOW_START_MS = Date.UTC(2026, 11, 1);
+const at = (sec: number) => new Date(WINDOW_START_MS + sec * 1000);
+const KEY = `trophy:${"a".repeat(64)}`;
 
 beforeEach(() => fake.reset());
 
-describe("consumeRateLimit", () => {
-  it(`같은 창에서 ${limit}번까지 허용하고 그다음은 막아요`, async () => {
-    for (let i = 0; i < limit; i++) {
-      const r = await consumeRateLimit("createCeremony", IP_A, at(i));
-      expect(r).toEqual({ ok: true, remaining: limit - i - 1 });
+describe("rateLimit", () => {
+  it("한도 안에서는 true, 한도를 넘으면 false", async () => {
+    for (let i = 0; i < 5; i++) {
+      expect(await rateLimit(KEY, 5, WINDOW, at(i))).toBe(true);
     }
-    const blocked = await consumeRateLimit("createCeremony", IP_A, at(60));
-    expect(blocked).toEqual({ ok: false, retryAfterSec: windowSec - 60 });
+    expect(await rateLimit(KEY, 5, WINDOW, at(10))).toBe(false);
+    expect(await rateLimit(KEY, 5, WINDOW, at(599))).toBe(false);
   });
 
-  it("막힌 요청은 횟수를 더 올리지 않아요", async () => {
-    for (let i = 0; i < limit + 3; i++) {
-      await consumeRateLimit("createCeremony", IP_A, at(i));
-    }
-    const key = rateLimitKey("createCeremony", IP_A, WINDOW_START.getTime());
-    expect(fake.docs.get(`rateLimits/${key}`)?.count).toBe(limit);
+  it("넘친 요청은 횟수를 더 올리지 않아요", async () => {
+    for (let i = 0; i < 7; i++) await rateLimit(KEY, 5, WINDOW, at(i));
+    const id = rateLimitDocId(KEY, windowStartOf(at(0), WINDOW));
+    expect(fake.docs.get(`rateLimits/${id}`)?.count).toBe(5);
   });
 
-  it("다음 창이 되면 다시 허용해요", async () => {
-    for (let i = 0; i < limit; i++) {
-      await consumeRateLimit("createCeremony", IP_A, at(i));
-    }
-    expect((await consumeRateLimit("createCeremony", IP_A, at(windowSec - 1))).ok).toBe(
-      false,
-    );
-    expect((await consumeRateLimit("createCeremony", IP_A, at(windowSec))).ok).toBe(true);
+  it("다음 구간이 되면 다시 세요(초기화)", async () => {
+    for (let i = 0; i < 5; i++) await rateLimit(KEY, 5, WINDOW, at(i));
+    expect(await rateLimit(KEY, 5, WINDOW, at(WINDOW - 1))).toBe(false);
+    expect(await rateLimit(KEY, 5, WINDOW, at(WINDOW))).toBe(true);
+    const next = rateLimitDocId(KEY, windowStartOf(at(WINDOW), WINDOW));
+    expect(fake.docs.get(`rateLimits/${next}`)?.count).toBe(1);
   });
 
-  it("IP 해시가 다르면 따로 세요", async () => {
-    for (let i = 0; i < limit; i++) {
-      await consumeRateLimit("createCeremony", IP_A, at(i));
-    }
-    expect((await consumeRateLimit("createCeremony", IP_B, at(30))).ok).toBe(true);
+  it("key가 다르면 따로 세요", async () => {
+    for (let i = 0; i < 5; i++) await rateLimit(KEY, 5, WINDOW, at(i));
+    expect(await rateLimit(`trophy:${"b".repeat(64)}`, 5, WINDOW, at(5))).toBe(true);
+    expect(await rateLimit(`create:${"a".repeat(64)}`, 5, WINDOW, at(5))).toBe(true);
   });
 
-  it("문서에는 count와 창이 끝나는 expireAt만 저장해요", async () => {
-    await consumeRateLimit("createCeremony", IP_A, at(5));
-    const key = rateLimitKey("createCeremony", IP_A, WINDOW_START.getTime());
-    expect(key).toBe(`createCeremony_${"a".repeat(32)}_${WINDOW_START.getTime() / 1000}`);
-    const doc = fake.docs.get(`rateLimits/${key}`)!;
+  it("문서 id는 {key}_{windowStart}, 처음 만들 때 expireAt = (windowStart+2)×windowSec", async () => {
+    await rateLimit(KEY, 5, WINDOW, at(30));
+    const windowStart = Math.floor(WINDOW_START_MS / 1000 / WINDOW);
+    expect(windowStartOf(at(30), WINDOW)).toBe(windowStart);
+    const doc = fake.docs.get(`rateLimits/${KEY}_${windowStart}`)!;
+    expect(doc.count).toBe(1);
+    expect(doc.expireAt).toBeInstanceOf(Timestamp);
+    expect((doc.expireAt as Timestamp).toMillis()).toBe((windowStart + 2) * WINDOW * 1000);
     expect(Object.keys(doc).sort()).toEqual(["count", "expireAt"]);
-    expect((doc.expireAt as Timestamp).toDate()).toEqual(at(windowSec));
   });
 
-  it("TTL 삭제가 늦어 만료된 문서가 남아 있어도 새로 세요", async () => {
-    const key = rateLimitKey("createCeremony", IP_A, WINDOW_START.getTime());
-    await fake.collection("rateLimits").doc(key).set({
-      count: limit,
-      expireAt: Timestamp.fromDate(at(-1)), // 이미 지난 값
-    });
-    expect(await consumeRateLimit("createCeremony", IP_A, at(10))).toEqual({
-      ok: true,
-      remaining: limit - 1,
-    });
+  it("Retry-After는 이번 구간이 끝날 때까지 남은 초", () => {
+    expect(retryAfterSec(at(0), WINDOW)).toBe(600);
+    expect(retryAfterSec(at(599), WINDOW)).toBe(1);
+    expect(retryAfterSec(at(599.5), WINDOW)).toBe(1);
   });
 });
